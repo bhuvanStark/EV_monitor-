@@ -6,7 +6,7 @@ require('dotenv').config();
 const { saveLatestTelemetry, addHistoricalTelemetry } = require('./firestoreService');
 const { isMock } = require('./firebaseConfig');
 
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+const CLOUD_ML_KEY = process.env.GEMINI_API_KEY || process.env.CLOUD_ML_KEY;
 
 // 1. Load Decision Tree JSON model (as fallback)
 const modelPath = path.join(__dirname, '../ml/battery_model.json');
@@ -89,9 +89,9 @@ function processML(voltage, current, temp, gyro) {
   return { status, stressScore, insight };
 }
 
-// 2. Gemini AI Deep Diagnostics Inference Function
-async function getGeminiInference(voltage, current, temp, gyro, telemetry) {
-  if (!GEMINI_API_KEY) return null;
+// 2. Cloud ML Deep Diagnostics Inference Function
+async function getCloudMLInference(voltage, current, temp, gyro, telemetry) {
+  if (!CLOUD_ML_KEY) return null;
 
   const promptText = `You are a real-time EV Battery Diagnostics AI.
 Analyze the following telemetry:
@@ -119,7 +119,7 @@ Your response must be a JSON object matching this schema:
 }`;
 
   try {
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent?key=${GEMINI_API_KEY}`, {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent?key=${CLOUD_ML_KEY}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -137,7 +137,7 @@ Your response must be a JSON object matching this schema:
     });
     
     if (!response.ok) {
-      throw new Error(`Gemini API HTTP Error: ${response.status}`);
+      throw new Error(`Cloud ML API HTTP Error: ${response.status}`);
     }
     
     const resData = await response.json();
@@ -149,7 +149,7 @@ Your response must be a JSON object matching this schema:
       insight: parsed.insight
     };
   } catch (error) {
-    console.error('⚠️ Gemini API inference failed:', error.message);
+    console.error('⚠️ Cloud ML inference failed:', error.message);
     return null;
   }
 }
@@ -171,10 +171,10 @@ const mqttOptions = {
 
 let mqttClient;
 
-// Throttling Gemini AI calls to 15s to avoid rate-limiting and keep things responsive
-let lastGeminiCallTime = 0;
-const GEMINI_COOLDOWN_MS = 15000;
-let lastGeminiResult = null;
+// Throttling Cloud ML calls to 15s to avoid rate-limiting and keep things responsive
+let lastCloudMLCallTime = 0;
+const CLOUD_ML_COOLDOWN_MS = 15000;
+let lastCloudMLResult = null;
 
 try {
   mqttClient = mqtt.connect(brokerUrl, mqttOptions);
@@ -225,38 +225,38 @@ try {
       const now = Date.now();
       let mlOutputs = null;
 
-      // Rate limit Gemini calls to prevent hitting API quotas
-      if (GEMINI_API_KEY && (now - lastGeminiCallTime >= GEMINI_COOLDOWN_MS)) {
-        console.log('🤖 Querying Gemini AI Diagnostics for deep analysis...');
-        lastGeminiCallTime = now;
+      // Rate limit Cloud ML calls to prevent hitting API quotas
+      if (CLOUD_ML_KEY && (now - lastCloudMLCallTime >= CLOUD_ML_COOLDOWN_MS)) {
+        console.log('🤖 Querying Cloud ML Diagnostics for deep analysis...');
+        lastCloudMLCallTime = now;
         
-        getGeminiInference(voltage, current, temp, gyro, telemetry)
-          .then(async (geminiResult) => {
-            if (geminiResult) {
-              lastGeminiResult = geminiResult;
-              console.log('🤖 Gemini Diagnostics Update:', geminiResult);
+        getCloudMLInference(voltage, current, temp, gyro, telemetry)
+          .then(async (mlResult) => {
+            if (mlResult) {
+              lastCloudMLResult = mlResult;
+              console.log('🤖 Cloud ML Diagnostics Update:', mlResult);
               
-              // Push the live telemetry + Gemini diagnostics update to Firestore immediately
+              // Push the live telemetry + Cloud ML diagnostics update to Firestore immediately
               const fullRecord = {
                 voltage: parseFloat(voltage),
                 current: parseFloat(current),
                 temp: parseFloat(temp),
                 gyro: parseFloat(gyro),
-                ...geminiResult
+                ...mlResult
               };
               await saveLatestTelemetry(fullRecord);
               await addHistoricalTelemetry(fullRecord);
             }
           })
-          .catch(err => console.error('Error writing Gemini telemetry:', err.message));
+          .catch(err => console.error('Error writing Cloud ML telemetry:', err.message));
       }
 
       // Read from cached AI diagnosis if available, otherwise run local fast decision tree
-      if (lastGeminiResult) {
+      if (lastCloudMLResult) {
         mlOutputs = {
-          status: lastGeminiResult.status,
-          stressScore: lastGeminiResult.stressScore,
-          insight: lastGeminiResult.insight
+          status: lastCloudMLResult.status,
+          stressScore: lastCloudMLResult.stressScore,
+          insight: lastCloudMLResult.insight
         };
       } else {
         mlOutputs = processML(
