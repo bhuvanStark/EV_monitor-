@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VoltSense Edge — EV Intelligence Systems</title>
+  <link href="https://fonts.googleapis.com/css2?family=Exo+2:wght@400;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    body {
+      background-color: #0A0F1E;
+      color: #FFFFFF;
+      font-family: 'Inter', sans-serif;
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      text-align: center;
+      overflow: hidden;
+    }
+    
+    .card {
+      background: radial-gradient(100% 100% at 0% 0%, rgba(255, 255, 255, 0.03) 0%, rgba(255, 255, 255, 0.01) 100%);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 24px;
+      padding: 60px 40px;
+      max-width: 500px;
+      box-shadow: 0 20px 80px rgba(0, 0, 0, 0.5);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      transition: border-color 0.5s ease;
+      position: relative;
+    }
+    
+    .card::before {
+      content: '';
+      position: absolute;
+      top: -2px;
+      left: -2px;
+      right: -2px;
+      bottom: -2px;
+      border-radius: 24px;
+      background: linear-gradient(135deg, rgba(0, 229, 255, 0.2), rgba(0, 230, 118, 0.2), transparent);
+      z-index: -1;
+    }
+    
+    .logo-container {
+      width: 80px;
+      height: 80px;
+      background: linear-gradient(135deg, #00E5FF, #00E676);
+      border-radius: 20px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 24px;
+      color: #0A0F1E;
+      box-shadow: 0 0 30px rgba(0, 230, 118, 0.3);
+    }
+    
+    h1 {
+      font-family: 'Exo 2', sans-serif;
+      font-size: 32px;
+      margin: 0 0 12px 0;
+      background: linear-gradient(90deg, #FFFFFF, #00E5FF);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    
+    p {
+      color: #8A99AD;
+      font-size: 15px;
+      line-height: 1.6;
+      margin: 0 0 32px 0;
+    }
+    
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: linear-gradient(135deg, #00E5FF, #00E676);
+      color: #0A0F1E;
+      text-decoration: none;
+      font-family: 'Exo 2', sans-serif;
+      font-weight: 700;
+      padding: 14px 28px;
+      border-radius: 12px;
+      box-shadow: 0 4px 20px rgba(0, 230, 118, 0.25);
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    
+    .btn:hover {
+      box-shadow: 0 8px 30px rgba(0, 230, 118, 0.4);
+      transform: translateY(-2px);
+    }
+    
+    .system-status {
+      margin-top: 40px;
+      font-size: 12px;
+      color: #5A697F;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+    
+    .dot {
+      width: 6px;
+      height: 6px;
+      background: #00E676;
+      border-radius: 50%;
+      box-shadow: 0 0 8px #00E676;
+      display: inline-block;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo-container">
+      <i data-lucide="zap" size="40" stroke-width="2.5" style="fill: #0A0F1E"></i>
+    </div>
+    <h1>VoltSense Edge</h1>
+    <p>
+      EV battery diagnostics intelligence pipeline. Real-time MQTT telemetry parser, Decision Tree classifier inference, and predictive health logging dashboard.
+    </p>
+    <a href="dashboard.html" class="btn">
+      Enter Dashboard
+      <i data-lucide="arrow-right" size="18"></i>
+    </a>
+    
+    <div class="system-status">
+      <span class="dot"></span>
+      VoltSense Core Engine Online
+    </div>
+  </div>
+  
+  <script>
+    lucide.createIcons();
+  </script>
+</body>
+</html>

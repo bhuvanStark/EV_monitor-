@@ -1,122 +1,111 @@
-# BatteryIQ — EV Two-Wheeler Battery Intelligence Dashboard
+# VoltSense Edge — EV Battery Intelligence Suite
 
-**BatteryIQ** is an IoT-based electric vehicle battery intelligence system designed to track, classify, and analyze battery pack diagnostics and health in real time. It features a premium, responsive instrument-cluster themed dashboard designed for two-wheeler EVs. 
-
-The system leverages on-device **TinyML** running on an **ESP32** microcontroller to classify riding behavior patterns, which are mapped directly to battery degradation rates.
+VoltSense Edge is a real-time battery diagnostics and classification system. It parses telemetry metrics (`voltage`, `current`, `temp`, `gyro`) from an EV battery pack via an MQTT subscriber, runs real-time classification using an on-device Decision Tree model, and writes diagnostics state to Firebase Firestore. The frontend dashboard connects to Firestore in real-time, rendering active metrics, charts, and actionable safety insights.
 
 ---
 
-## 🎨 Design Direction & Interface
-The dashboard uses a high-fidelity, premium EV instrument cluster aesthetic:
-* **Color Palette**: Dark Navy background (`#0A0F1E`), Card Navy (`#0D1526`), Electric Green accents (`#00E676`), and Teal highlights (`#00E5FF`).
-* **Typography**: *Exo 2* for technical headings and instrument displays, *Inter* for readable UI elements.
-* **Layout**: Fully responsive grid (1 column on mobile, 2 columns on desktop) with glassmorphism effects, scale hover states, and glowing notification indicators.
-
----
-
-## 📊 Core Features & Sections
-
-### 1. Header Bar & Device Metadata
-* Displays active device identity (`ESP32-NODE-01`), connection status indicator (pulsing green "Live" badge), and live synchronized clock.
-
-### 2. Key Metrics Row
-* **Battery SOH**: Color-coded percentage health state indicator (Green >80%, Yellow 60-80%, Red <60%).
-* **Cell Voltage**: Real-time voltage shown in Volts (V) complete with a min/max bar slider (3.2V to 4.2V bounds).
-* **Pack Temperature**: Temperature in °C mapped to safety levels (Normal / Warning / Critical).
-* **Est. Life Remaining**: Remaining battery life in months calculated from the SOH degradation speed.
-
-### 3. TinyML Riding Pattern Classifier
-* Displays the active pattern determined by the on-device TinyML model:
-  * 🟢 **Smooth Rider**: Minimal wear.
-  * 🟡 **Stop-Start Urban**: Moderate congestion-based wear.
-  * 🟠 **Overload Carrier**: Elevated payload/incline thermal stress.
-  * 🔴 **Aggressive Accelerator**: Severe cell discharge degradation.
-* Includes an active glowing border pulse animation matching the pattern's severity, confidence score percentage bar, and a sliding log of the last 10 detected patterns.
-
-### 4. Real-Time Telemetry Streams (Line Charts)
-* Features 3 stacked dark-themed line charts powered by **Chart.js** displaying historical trends (last 30 ticks) for:
-  * **Cell Voltage (V)**
-  * **Current Draw (mA)**
-  * **Pack Temperature (°C)**
-* Updates synchronously every 3 seconds.
-
-### 5. Battery Degradation Analysis
-* **Horizontal Bar Chart**: Compares the degradation rate (SOH drop per 100 cycles) across all 4 riding styles.
-* **Financial Risk Calculator**: Highlights active financial loss warning (e.g., *"Aggressive riding costs you ₹18,000 extra battery life per year"*).
-* **Habit Recommender**: Provides dynamic actionable instructions matching the current active pattern.
-
-### 6. MQTT Connection Panel
-* Tracks subscription metrics on **HiveMQ Cloud WebSocket Broker** across relevant topics (`ev/battery/voltage`, `ev/battery/temp`, `ev/battery/soh`, `ev/battery/pattern`, `ev/battery/prediction`).
-* Monospace terminal log tracking incoming JSON messages in real time.
-
-### 7. Active Safety Alerts
-* Triggers dismissible alerts based on telemetry thresholds:
-  * *Critical Temperature* (>45°C)
-  * *Elevated Temperature* (>40°C)
-  * *Critical/Warning SOH* (<60% or <80%)
-  * *Aggressive Riding Profile* active.
-* Automatically reverts to a green **"All Systems Operational"** banner when all alerts are cleared.
-
----
-
-## ⚙️ Telemetry Simulation Engine
-Until the physical ESP32 node is connected, a built-in Javascript simulation drives all telemetry:
-* **Voltage**: Oscillates between 3.2V and 4.2V with random load-draw noise.
-* **Current Draw**: Varies between 200mA and 2000mA according to active riding dynamics.
-* **Temperature**: Oscillates between 25°C and 45°C depending on charge/discharge speed.
-* **State-of-Health (SOH)**: Starts at 87% and degrades slowly depending on active model patterns.
-* **Aggressive Riding Simulator Button**: Instantly spikes current draw (1800mA–2500mA) and temperature (42°C–52°C) while forcing the pattern to *Aggressive Accelerator* for 10 seconds to demonstrate how the safety system and alert panel respond.
-* **Reset Simulation Button**: Flushes history buffers, restores telemetry states to baseline, and resets alerts.
-
----
-
-## 🔌 System Architecture & Live Deployment
+## 📂 Directory Structure
 
 ```
-ESP32 Telemetry  →   JSON Payload   →  MQTT Broker (HiveMQ)  →  WebSocket Bridge  →  HTML5 Dashboard  →  Chart.js
- (Sensors + ML)     (MQTT Publish)       (Cloud Server)        (Browser Socket)     (Live Parsing)      (Rendering)
+VoltSense-Edge/
+│
+├── ml/
+│   ├── generate_synthetic_data.py (Generates CSV telemetry data)
+│   ├── train_model.py             (Trains Decision Tree, saves .pkl, .tflite, and .json)
+│   ├── battery_model.pkl          (Scikit-learn model export)
+│   ├── battery_model.tflite        (TF Lite model export)
+│   ├── battery_model.json         (JSON tree representation for Node.js backend)
+│   └── labels.txt                 (Class labels: Healthy, Stress, Risk)
+│
+├── backend/
+│   ├── server.js                  (Express server hosting static dashboard & telemetry API)
+│   ├── mqttSubscriber.js          (MQTT client parser & database writer)
+│   ├── firebaseConfig.js          (Firebase Node Admin SDK loader with local DB fallback)
+│   ├── firestoreService.js        (Abstracts database queries and logs)
+│   ├── package.json               (Backend Node dependency configuration)
+│   └── .env                       (MQTT and Firebase connection credentials)
+│
+└── frontend/
+    ├── index.html                 (Landing Entry Page)
+    ├── dashboard.html             (Instrument-cluster UI dashboard)
+    ├── css/
+    │   └── styles.css             (Custom UI styling)
+    └── js/
+        ├── firebase.js            (Configures Firestore listeners)
+        ├── dashboard.js           (Drives UI telemetry mapping and modal inputs)
+        ├── charts.js              (Manages rolling Chart.js data logs)
+        └── insights.js            (Resolves recommendation advice based on states)
 ```
-
-To swap simulated data with live ESP32 sensors:
-1. Add the Eclipse Paho MQTT Javascript library to `index.html`:
-   ```html
-   <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
-   ```
-2. Connect to the WebSocket port (usually `8000` or `443` for SSL) of your HiveMQ broker:
-   ```javascript
-   const client = new Paho.MQTT.Client("your-broker-address.s1.hivemq.cloud", 8884, "web_client_id");
-   
-   client.connect({
-       useSSL: true,
-       userName: "your_username",
-       password: "your_password",
-       onSuccess: () => {
-           console.log("Connected!");
-           client.subscribe("ev/battery/#");
-       }
-   });
-   ```
-3. Parse the message payloads in your callback and pass them to the UI updater elements:
-   ```javascript
-   client.onMessageArrived = (message) => {
-       const data = JSON.parse(message.payloadString);
-       if (message.destinationName === "ev/battery/voltage") {
-           // Call dashboard updater
-           updateVoltage(data.voltage);
-       }
-   };
-   ```
 
 ---
 
-## 🚀 How to Run Locally
+## ⚡ Setup & Execution
 
-### Option A: Local View
-Simply double-click the `index.html` file to run it in any modern browser (Chrome, Edge, Firefox, Safari).
+### 1. Train the ML Classifier
+Create a Python virtual environment and run the training scripts to output classification weights:
 
-### Option B: Hosting via GitHub Pages
-To host this live on the web:
-1. Commit and push this project repository to GitHub.
-2. Go to **Settings** > **Pages** inside your GitHub repository.
-3. Select the `main` branch as the build source and save.
-4. Your dashboard will be live at `https://<your-username>.github.io/<repo-name>/`.
+```bash
+# Navigate to ML directory
+cd ml
+
+# Create virtual environment (if not already created)
+python3 -m venv venv
+source venv/bin/activate
+
+# Install dependencies
+pip install scikit-learn pandas numpy
+
+# Generate synthetic data & train the model
+python generate_synthetic_data.py
+python train_model.py
+```
+
+### 2. Configure Backend Credentials
+Rename the environment variables file and fill in your MQTT broker and Firebase service account path details:
+
+```bash
+# Navigate to Backend
+cd ../backend
+
+# Setup environment configuration
+cp .env.example .env
+```
+
+Open `.env` and fill in:
+* `MQTT_BROKER_URL`: Connection string (e.g. `mqtt://broker.hivemq.com` or HiveMQ Cloud host)
+* `MQTT_PORT`: Connection port (typically `1883` or `8883`)
+* `FIREBASE_SERVICE_ACCOUNT_PATH`: Path to your Firebase service account JSON key file.
+* `USE_SIMULATION`: Set to `true` to run a mock local telemetry publisher and mock local database (`local_db.json`) if you do not have MQTT brokers/Firebase credentials ready yet.
+
+### 3. Run the Node.js Backend & Subscriber
+Install backend Node packages and start the subscriber client and server:
+
+```bash
+# Install NPM packages
+npm install
+
+# Start MQTT subscriber (runs in background, listening and saving data)
+npm run subscriber
+
+# In a separate terminal shell, start the Express dashboard web server:
+npm run start
+```
+
+### 4. Access the Dashboard UI
+1. Open your browser and head to: **`http://localhost:3000`**
+2. Click **Enter Dashboard**.
+3. **Firestore Live Connection Setup**:
+   * Click the **Settings Gear Icon** in the top right of the dashboard.
+   * Paste your Firebase Client Web SDK configuration credentials:
+     ```json
+     {
+       "apiKey": "YOUR_API_KEY",
+       "authDomain": "YOUR_PROJECT_ID.firebaseapp.com",
+       "projectId": "YOUR_PROJECT_ID",
+       "storageBucket": "YOUR_PROJECT_ID.appspot.com",
+       "messagingSenderId": "YOUR_SENDER_ID",
+       "appId": "YOUR_APP_ID"
+     }
+     ```
+   * Click **Save Config & Reload**.
+   * The dashboard will now automatically initialize the Firebase client and listen to Firestore collections `battery_data` and `battery_history` in real-time! If left empty, it safely falls back to local server REST API pooling.

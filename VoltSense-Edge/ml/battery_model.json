@@ -1,0 +1,129 @@
+{
+  "feature": 3,
+  "threshold": 39.69499969482422,
+  "left": {
+    "feature": 2,
+    "threshold": 37.94000053405762,
+    "left": {
+      "feature": 1,
+      "threshold": 2.8350000381469727,
+      "left": {
+        "feature": 0,
+        "threshold": 3.5450000762939453,
+        "left": {
+          "feature": 2,
+          "threshold": 35.385000228881836,
+          "left": {
+            "value": 2
+          },
+          "right": {
+            "value": 1
+          }
+        },
+        "right": {
+          "value": 0
+        }
+      },
+      "right": {
+        "feature": 0,
+        "threshold": 3.2549999952316284,
+        "left": {
+          "value": 2
+        },
+        "right": {
+          "value": 1
+        }
+      }
+    },
+    "right": {
+      "feature": 2,
+      "threshold": 48.18000030517578,
+      "left": {
+        "feature": 0,
+        "threshold": 3.299999952316284,
+        "left": {
+          "value": 2
+        },
+        "right": {
+          "feature": 1,
+          "threshold": 8.425000190734863,
+          "left": {
+            "value": 1
+          },
+          "right": {
+            "value": 2
+          }
+        }
+      },
+      "right": {
+        "value": 2
+      }
+    }
+  },
+  "right": {
+    "feature": 3,
+    "threshold": 80.33500289916992,
+    "left": {
+      "feature": 2,
+      "threshold": 45.3799991607666,
+      "left": {
+        "feature": 0,
+        "threshold": 3.2899999618530273,
+        "left": {
+          "value": 2
+        },
+        "right": {
+          "feature": 1,
+          "threshold": 8.240000247955322,
+          "left": {
+            "value": 1
+          },
+          "right": {
+            "value": 2
+          }
+        }
+      },
+      "right": {
+        "feature": 2,
+        "threshold": 47.93000030517578,
+        "left": {
+          "feature": 0,
+          "threshold": 3.524999976158142,
+          "left": {
+            "value": 2
+          },
+          "right": {
+            "value": 1
+          }
+        },
+        "right": {
+          "value": 2
+        }
+      }
+    },
+    "right": {
+      "feature": 0,
+      "threshold": 3.6149998903274536,
+      "left": {
+        "value": 2
+      },
+      "right": {
+        "feature": 3,
+        "threshold": 118.53000259399414,
+        "left": {
+          "feature": 2,
+          "threshold": 45.295000076293945,
+          "left": {
+            "value": 1
+          },
+          "right": {
+            "value": 2
+          }
+        },
+        "right": {
+          "value": 2
+        }
+      }
+    }
+  }
+}

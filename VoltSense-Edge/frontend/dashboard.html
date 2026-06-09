@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VoltSense Edge — Battery Intelligence Dashboard</title>
+  
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Exo+2:wght@400;600;700&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  
+  <!-- Style Sheet -->
+  <link rel="stylesheet" href="css/styles.css">
+  
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <!-- Firebase Client SDK (v8 Compat for simplicity and CDN stability) -->
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+</head>
+<body>
+
+  <div class="app-container">
+    
+    <!-- HEADER BAR -->
+    <header>
+      <div class="logo-section">
+        <div class="logo-icon">
+          <i data-lucide="zap" stroke-width="2.5" style="fill: var(--bg-color)"></i>
+        </div>
+        <div class="logo-text">
+          <span class="logo-title">VoltSense Edge</span>
+          <span class="logo-subtitle">EV Battery Diagnostics Intelligence Suite</span>
+        </div>
+      </div>
+      
+      <div class="header-info">
+        <div class="device-badge">
+          <i data-lucide="cpu" size="14"></i>
+          <span>VOLTSENSE-NODE-01</span>
+        </div>
+        
+        <div class="device-badge" style="color: var(--yellow)" id="modeBadge">
+          <i data-lucide="activity" size="14"></i>
+          <span id="modeBadgeText">Local Server Mode</span>
+        </div>
+        
+        <div class="status-badge" id="connectionBadge">
+          <span class="status-dot"></span>
+          <span id="connStatusText">Live</span>
+        </div>
+        
+        <button class="btn-settings" onclick="openSettings()" title="Firebase Configuration Settings">
+          <i data-lucide="settings" size="16"></i>
+        </button>
+      </div>
+    </header>
+
+    <!-- METRICS GRID ROW -->
+    <div class="metrics-grid">
+      
+      <!-- Card 1: Voltage -->
+      <div class="card">
+        <div class="card-title">
+          <i data-lucide="plug"></i>
+          Cell Voltage
+        </div>
+        <div class="metric-value-container">
+          <span class="metric-value" id="metricVoltage" style="color: var(--teal)">0.00</span>
+          <span class="metric-unit">V</span>
+        </div>
+        <div class="progress-bar-bg">
+          <div class="progress-bar-fill" id="barVoltage" style="background: var(--teal)"></div>
+        </div>
+        <div class="metric-subtext">
+          <span>2.8V (Min)</span>
+          <span style="margin-left: auto;">4.2V (Max)</span>
+        </div>
+      </div>
+
+      <!-- Card 2: Current Draw -->
+      <div class="card">
+        <div class="card-title">
+          <i data-lucide="activity"></i>
+          Current Draw
+        </div>
+        <div class="metric-value-container">
+          <span class="metric-value" id="metricCurrent" style="color: var(--green)">0.00</span>
+          <span class="metric-unit">A</span>
+        </div>
+        <div class="progress-bar-bg">
+          <div class="progress-bar-fill" id="barCurrent" style="background: var(--green)"></div>
+        </div>
+        <div class="metric-subtext">
+          <span>0.0A (Min)</span>
+          <span style="margin-left: auto;">12.0A (Max)</span>
+        </div>
+      </div>
+
+      <!-- Card 3: Temperature -->
+      <div class="card">
+        <div class="card-title">
+          <i data-lucide="thermometer"></i>
+          Pack Temperature
+        </div>
+        <div class="metric-value-container">
+          <span class="metric-value" id="metricTemp" style="color: #FFCDD2">0.0</span>
+          <span class="metric-unit">°C</span>
+        </div>
+        <div class="metric-subtext" id="tempBadge">
+          <span>🟢 Normal</span>
+        </div>
+      </div>
+
+      <!-- Card 4: Gyroscope (Rotational Instability) -->
+      <div class="card">
+        <div class="card-title">
+          <i data-lucide="navigation"></i>
+          Gyroscope draw
+        </div>
+        <div class="metric-value-container">
+          <span class="metric-value" id="metricGyro" style="color: var(--orange)">0</span>
+          <span class="metric-unit">dps</span>
+        </div>
+        <div class="progress-bar-bg">
+          <div class="progress-bar-fill" id="barGyro" style="background: var(--orange)"></div>
+        </div>
+        <div class="metric-subtext">
+          <span>0 dps (Vibration)</span>
+          <span style="margin-left: auto;">250 dps</span>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- MAIN TWO-COLUMN LAYOUT -->
+    <div class="dashboard-grid">
+      
+      <!-- LEFT COLUMN (ML Analytics & Logs) -->
+      <div class="dashboard-col">
+        
+        <!-- Decision Tree Classifier Card -->
+        <div class="card">
+          <div class="card-title">
+            <i data-lucide="brain"></i>
+            Decision Tree Diagnostics Model
+          </div>
+          
+          <div class="status-display-box">
+            <div class="status-info">
+              <div class="status-icon-frame" id="statusIconBox">
+                <i data-lucide="shield-check" style="color: var(--green); width: 28px; height: 28px;"></i>
+              </div>
+              <div>
+                <span class="status-label">Battery Classification Status</span>
+                <div class="status-name" id="statusName">Healthy</div>
+              </div>
+            </div>
+            
+            <div class="stress-meter-radial">
+              <span class="status-label">Overall Stress Index</span>
+              <div class="stress-score-num"><span id="stressScoreNum">0</span>%</div>
+              <div class="stress-gauge-bar">
+                <div class="stress-gauge-fill" id="stressScoreFill"></div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Recommendation / Insight Box -->
+          <div class="insight-box" id="insightContainer">
+            <div class="insight-header">
+              <i data-lucide="sparkles" size="14"></i>
+              <span id="insightHeader">Actionable Recommendation</span>
+            </div>
+            <div class="insight-text" id="insightText">
+              Diagnostic layers loading. Telemetry values processing...
+            </div>
+          </div>
+        </div>
+
+        <!-- Telemetry Streams Terminal Log -->
+        <div class="card">
+          <div class="card-title">
+            <i data-lucide="terminal"></i>
+            Real-Time Diagnostic Logs
+          </div>
+          <div class="log-container" id="terminalLog">
+            <div style="color: var(--text-muted); text-align: center; padding: 40px 0;">
+              Waiting for incoming packets... Make sure backend/mqttSubscriber.js is running.
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- RIGHT COLUMN (Charts Stream) -->
+      <div class="dashboard-col">
+        
+        <div class="card telemetry-charts-card">
+          <div class="card-title">
+            <i data-lucide="trending-up"></i>
+            Live Telemetry Streams (Last 30 ticks)
+          </div>
+          
+          <!-- Voltage Chart -->
+          <div>
+            <div class="chart-header">
+              <span class="chart-label">Voltage Line Stream</span>
+              <span class="chart-curr-val">Cell Voltage (V)</span>
+            </div>
+            <div class="chart-wrapper">
+              <canvas id="chartVoltage"></canvas>
+            </div>
+          </div>
+
+          <!-- Current Chart -->
+          <div>
+            <div class="chart-header">
+              <span class="chart-label">Current Draw Stream</span>
+              <span class="chart-curr-val" style="color: var(--green)">Current Draw (A)</span>
+            </div>
+            <div class="chart-wrapper">
+              <canvas id="chartCurrent"></canvas>
+            </div>
+          </div>
+
+          <!-- Temp & Gyro Charts stacked inline -->
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            <div>
+              <div class="chart-header">
+                <span class="chart-label">Thermal Pack (°C)</span>
+              </div>
+              <div class="chart-wrapper" style="height: 110px;">
+                <canvas id="chartTemp"></canvas>
+              </div>
+            </div>
+            <div>
+              <div class="chart-header">
+                <span class="chart-label">Gyro stability (dps)</span>
+              </div>
+              <div class="chart-wrapper" style="height: 110px;">
+                <canvas id="chartGyro"></canvas>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+
+    </div>
+
+  </div>
+
+  <!-- CONFIGURATION SETTINGS MODAL -->
+  <div class="modal-overlay" id="settingsModal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 class="modal-title">Firebase Credentials Configuration</h3>
+        <button class="modal-close-btn" onclick="closeSettings()">
+          <i data-lucide="x" size="20"></i>
+        </button>
+      </div>
+      
+      <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 20px;">
+        To receive real-time updates directly from your Firestore instance, paste your Firebase client SDK configuration JSON object below. If left blank, the client defaults to Local Server polling mode.
+      </p>
+      
+      <form onsubmit="saveSettings(event)">
+        <div class="form-group">
+          <label class="form-label" for="firebaseConfigInput">Firebase Web Config JSON</label>
+          <textarea 
+            class="form-input form-textarea" 
+            id="firebaseConfigInput" 
+            placeholder='{
+  "apiKey": "AIzaSy...",
+  "authDomain": "your-project.firebaseapp.com",
+  "projectId": "your-project-id",
+  "storageBucket": "your-project.appspot.com",
+  "messagingSenderId": "123456789",
+  "appId": "1:1234:web:abcd"
+}'></textarea>
+        </div>
+        
+        <button type="submit" class="btn-primary">Save Config & Reload</button>
+        <button type="button" class="btn-secondary" onclick="closeSettings()">Cancel</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Footer metadata element -->
+  <footer style="text-align: center; padding: 24px; font-size: 11px; color: var(--text-muted); border-top: 1px solid var(--border-color); margin-top: 40px;">
+    VoltSense Edge Pipeline Suite — Powered by CART Decision Trees & Firestore. Updated live every 3s.
+    <br>
+    Last Synced: <span id="liveTime" style="font-family: 'JetBrains Mono', monospace; color: var(--text-secondary);">00:00:00</span> | Core clock: <span id="liveClock" style="font-family: 'JetBrains Mono', monospace;">00:00:00</span>
+  </footer>
+
+  <!-- App Logic Scripts -->
+  <script src="js/insights.js"></script>
+  <script src="js/charts.js"></script>
+  <script src="js/firebase.js"></script>
+  <script src="js/dashboard.js"></script>
+</body>
+</html>
