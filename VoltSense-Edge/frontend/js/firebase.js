@@ -55,35 +55,47 @@ function initFirebaseClient() {
 /**
  * Sets up real-time snapshot listeners for telemetry data.
  */
-function setupRealtimeListeners(onLatestUpdate, onHistoryUpdate) {
+function setupRealtimeListeners(onLatestUpdate, onHistoryUpdate, vehicleId = 'vehicle01') {
   if (!dbInstance) return false;
 
   // Cleanup existing listeners if any
   cleanupListeners();
 
   try {
-    // 1. Subscribe to latest state document
-    firestoreUnsubscribeLatest = dbInstance.collection('battery_data').doc('latest')
-      .onSnapshot((doc) => {
+    // 1. Subscribe to latest state document of the vehicle
+    const latestDocRef = vehicleId === 'vehicle01'
+      ? dbInstance.collection('battery_data').doc('latest')
+      : dbInstance.collection(vehicleId).doc('vehicleInfo');
+
+    console.log(`⏳ Setting up onSnapshot listener for ${vehicleId} latest...`);
+    firestoreUnsubscribeLatest = latestDocRef.onSnapshot((doc) => {
+        console.log('📥 onSnapshot latest event received! Exists:', doc.exists);
         if (doc.exists) {
           const data = doc.data();
+          console.log('📥 onSnapshot latest data:', data);
           // Normalize timestamp if it's a Firestore Timestamp object
           if (data.timestamp && typeof data.timestamp.toDate === 'function') {
             data.timestamp = data.timestamp.toDate().toISOString();
           }
           onLatestUpdate(data);
         } else {
-          console.warn('Latest telemetry document does not exist yet.');
+          console.warn(`Latest telemetry document for ${vehicleId} does not exist yet.`);
         }
       }, (error) => {
-        console.error('Latest telemetry listener error:', error);
+        console.error('❌ Latest telemetry listener error:', error);
       });
 
-    // 2. Subscribe to history collection
-    firestoreUnsubscribeHistory = dbInstance.collection('battery_history')
+    // 2. Subscribe to history subcollection of the vehicle
+    const historyColRef = vehicleId === 'vehicle01'
+      ? dbInstance.collection('battery_history_live')
+      : dbInstance.collection(vehicleId).doc('history').collection('battery_history');
+
+    console.log(`⏳ Setting up onSnapshot listener for ${vehicleId} history...`);
+    firestoreUnsubscribeHistory = historyColRef
       .orderBy('timestamp', 'desc')
       .limit(30)
       .onSnapshot((snapshot) => {
+        console.log('📥 onSnapshot history event received! Size:', snapshot.size);
         const historyData = [];
         snapshot.forEach((doc) => {
           const item = doc.data();
@@ -95,7 +107,7 @@ function setupRealtimeListeners(onLatestUpdate, onHistoryUpdate) {
         });
         onHistoryUpdate(historyData);
       }, (error) => {
-        console.error('Historical telemetry listener error:', error);
+        console.error('❌ Historical telemetry listener error:', error);
       });
 
     return true;
@@ -120,3 +132,4 @@ function cleanupListeners() {
 window.initFirebaseClient = initFirebaseClient;
 window.setupRealtimeListeners = setupRealtimeListeners;
 window.cleanupListeners = cleanupListeners;
+window.getFirestoreDb = () => dbInstance;

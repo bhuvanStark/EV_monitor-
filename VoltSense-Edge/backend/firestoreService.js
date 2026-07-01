@@ -1,68 +1,79 @@
 const { db, isMock, firebase } = require('./firebaseConfig');
 
 /**
- * Save the latest battery telemetry values.
- * Stores in battery_data collection with document ID 'latest'.
+ * Save the latest battery telemetry values for a specific vehicle.
+ * Stores in the vehicle's collection, under document 'vehicleInfo'.
+ * Keeps compatibility with old 'battery_data/latest' for vehicle01.
  */
-async function saveLatestTelemetry(data) {
+async function saveLatestTelemetry(data, vehicleId = 'vehicle01') {
   const payload = {
     ...data,
     timestamp: isMock ? new Date().toISOString() : firebase.firestore.FieldValue.serverTimestamp()
   };
 
   try {
-    await db.collection('battery_data').doc('latest').set(payload, { merge: true });
+    if (vehicleId === 'vehicle01') {
+      await db.collection('battery_data').doc('latest').set(payload, { merge: true });
+    } else {
+      await db.collection(vehicleId).doc('vehicleInfo').set(payload, { merge: true });
+    }
     return true;
   } catch (error) {
-    console.error('Error saving latest telemetry:', error.message);
+    console.error(`Error saving latest telemetry for ${vehicleId}:`, error.message);
     throw error;
   }
 }
 
 /**
- * Add a record to historical telemetry log.
- * Stores in battery_history collection.
+ * Add a record to historical telemetry log for a specific vehicle.
+ * Stores in the vehicle's collection, under doc 'history', subcollection 'battery_history'.
+ * Keeps compatibility with old 'battery_history_live' for vehicle01.
  */
-async function addHistoricalTelemetry(data) {
+async function addHistoricalTelemetry(data, vehicleId = 'vehicle01') {
   const payload = {
     ...data,
     timestamp: isMock ? new Date().toISOString() : firebase.firestore.FieldValue.serverTimestamp()
   };
 
   try {
-    const docRef = await db.collection('battery_history').add(payload);
-    return docRef.id;
+    let docRef;
+    if (vehicleId === 'vehicle01') {
+      docRef = await db.collection('battery_history_live').add(payload);
+    } else {
+      docRef = await db.collection(vehicleId).doc('history').collection('battery_history').add(payload);
+    }
+    return docRef ? docRef.id : null;
   } catch (error) {
-    console.error('Error adding historical telemetry:', error.message);
+    console.error(`Error adding historical telemetry for ${vehicleId}:`, error.message);
     throw error;
   }
 }
 
 /**
- * Get latest telemetry status.
+ * Get latest telemetry status for a specific vehicle.
  */
-async function getLatestTelemetry() {
+async function getLatestTelemetry(vehicleId = 'vehicle01') {
   try {
-    if (isMock) {
-      return db.latest;
-    }
-    const doc = await db.collection('battery_data').doc('latest').get();
+    const doc = vehicleId === 'vehicle01'
+      ? await db.collection('battery_data').doc('latest').get()
+      : await db.collection(vehicleId).doc('vehicleInfo').get();
     return doc.exists ? doc.data() : null;
   } catch (error) {
-    console.error('Error getting latest telemetry:', error.message);
+    console.error(`Error getting latest telemetry for ${vehicleId}:`, error.message);
     return null;
   }
 }
 
 /**
- * Get recent historical telemetry logs.
+ * Get recent historical telemetry logs for a specific vehicle.
  */
-async function getHistoricalTelemetry(limit = 30) {
+async function getHistoricalTelemetry(limit = 30, vehicleId = 'vehicle01') {
   try {
-    if (isMock) {
-      return db.history.slice(-limit).reverse();
-    }
-    const snapshot = await db.collection('battery_history')
+    const query = vehicleId === 'vehicle01'
+      ? db.collection('battery_history_live')
+      : db.collection(vehicleId).doc('history').collection('battery_history');
+
+    const snapshot = await query
       .orderBy('timestamp', 'desc')
       .limit(limit)
       .get();
@@ -73,7 +84,7 @@ async function getHistoricalTelemetry(limit = 30) {
     });
     return logs;
   } catch (error) {
-    console.error('Error getting historical telemetry:', error.message);
+    console.error(`Error getting historical telemetry for ${vehicleId}:`, error.message);
     return [];
   }
 }

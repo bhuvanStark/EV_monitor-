@@ -1,0 +1,1226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VoltSense Edge — Fleet Command Center</title>
+  
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Exo+2:wght@400;600;700&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  
+  <!-- Style Sheet -->
+  <link rel="stylesheet" href="css/styles.css">
+  
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <!-- Firebase Client SDK (v8 Compat) -->
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+
+  <style>
+    /* Fleet Command Center Specific Layout */
+    .fleet-layout {
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      gap: 24px;
+      margin-top: 24px;
+    }
+
+    @media (max-width: 992px) {
+      .fleet-layout {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Fleet Summary Cards overrides */
+    .fleet-summary-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    @media (max-width: 768px) {
+      .fleet-summary-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+
+    .summary-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      padding: 20px;
+      position: relative;
+      overflow: hidden;
+      transition: all 0.3s ease;
+    }
+
+    .summary-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+      border-color: rgba(255,255,255,0.1);
+    }
+
+    .summary-card-glow {
+      position: absolute;
+      top: 0;
+      right: 0;
+      width: 60px;
+      height: 60px;
+      border-radius: 50%;
+      filter: blur(40px);
+      opacity: 0.15;
+    }
+
+    .summary-card-title {
+      font-size: 11px;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .summary-card-value {
+      font-size: 32px;
+      font-weight: 700;
+      font-family: 'Exo 2', sans-serif;
+    }
+
+    /* Vehicle Cards List */
+    .vehicle-list {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .vehicle-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+      gap: 16px;
+    }
+
+    .vehicle-card:hover {
+      background: var(--card-hover-bg);
+      border-color: rgba(0, 229, 255, 0.2);
+      box-shadow: 0 4px 20px rgba(0, 229, 255, 0.05);
+    }
+
+    .vehicle-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+    }
+
+    .vehicle-title-area {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .vehicle-name {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+
+    .vehicle-type {
+      font-size: 11px;
+      color: var(--text-muted);
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .vehicle-badges {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* Live pulse indicator */
+    .live-indicator {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--green);
+      background: rgba(0, 230, 118, 0.08);
+      border: 1px solid rgba(0, 230, 118, 0.2);
+      padding: 4px 8px;
+      border-radius: 6px;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .live-dot {
+      width: 6px;
+      height: 6px;
+      background: var(--green);
+      border-radius: 50%;
+      box-shadow: 0 0 8px var(--green);
+      animation: pulse 1.5s infinite;
+    }
+
+    @keyframes pulse {
+      0% { opacity: 0.3; }
+      50% { opacity: 1; }
+      100% { opacity: 0.3; }
+    }
+
+    .health-badge {
+      font-size: 11px;
+      font-weight: 700;
+      padding: 4px 10px;
+      border-radius: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .health-Healthy {
+      background: rgba(0, 230, 118, 0.08);
+      color: var(--green);
+      border: 1px solid rgba(0, 230, 118, 0.2);
+    }
+
+    .health-Stress {
+      background: rgba(255, 213, 79, 0.08);
+      color: var(--yellow);
+      border: 1px solid rgba(255, 213, 79, 0.2);
+    }
+
+    .health-Risk {
+      background: rgba(255, 82, 82, 0.08);
+      color: var(--red);
+      border: 1px solid rgba(255, 82, 82, 0.2);
+    }
+
+    /* Vehicle Telemetry Row */
+    .vehicle-metrics-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      background: rgba(255, 255, 255, 0.01);
+      border-radius: 12px;
+      padding: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.02);
+    }
+
+    @media (max-width: 576px) {
+      .vehicle-metrics-row {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+
+    .mini-metric {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .mini-metric-label {
+      font-size: 9px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+    }
+
+    .mini-metric-value {
+      font-size: 14px;
+      font-weight: 600;
+      font-family: 'JetBrains Mono', monospace;
+      color: var(--text-primary);
+    }
+
+    /* Today's Live Summary specific for Prototype card */
+    .live-summary-section {
+      background: rgba(0, 229, 255, 0.02);
+      border: 1px solid rgba(0, 229, 255, 0.1);
+      border-radius: 12px;
+      padding: 12px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .live-summary-header {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--teal);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .live-summary-stats {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+      font-size: 11px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+      padding-bottom: 8px;
+    }
+
+    .live-summary-rec {
+      font-size: 12px;
+      color: var(--text-secondary);
+      line-height: 1.4;
+      display: flex;
+      align-items: flex-start;
+      gap: 6px;
+    }
+
+    .vehicle-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 4px;
+    }
+
+    .last-updated {
+      font-size: 11px;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .btn-report {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: linear-gradient(135deg, rgba(0, 229, 255, 0.08), rgba(0, 230, 118, 0.08));
+      color: var(--teal);
+      border: 1px solid rgba(0, 229, 255, 0.2);
+      padding: 8px 16px;
+      border-radius: 8px;
+      text-decoration: none;
+      font-family: 'Exo 2', sans-serif;
+      font-weight: 600;
+      font-size: 12px;
+      transition: all 0.2s ease;
+    }
+
+    .btn-report:hover {
+      background: linear-gradient(135deg, var(--teal), var(--green));
+      color: var(--bg-color);
+      border-color: transparent;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 15px rgba(0, 230, 118, 0.2);
+    }
+
+    /* Right Column Widgets */
+    .side-widget {
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      padding: 20px;
+      margin-bottom: 24px;
+    }
+
+    .widget-title {
+      font-size: 16px;
+      font-weight: 700;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      padding-bottom: 10px;
+      color: var(--text-primary);
+    }
+
+    .queue-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .queue-item {
+      background: rgba(255, 255, 255, 0.01);
+      border: 1px solid rgba(255, 255, 255, 0.03);
+      border-radius: 12px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      transition: border-color 0.2s ease;
+    }
+
+    .queue-item.border-critical {
+      border-left: 3px solid var(--red);
+    }
+
+    .queue-item.border-warning {
+      border-left: 3px solid var(--yellow);
+    }
+
+    .queue-item.border-info {
+      border-left: 3px solid var(--teal);
+    }
+
+    .queue-item:hover {
+      border-color: rgba(255,255,255,0.06);
+    }
+
+    .queue-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .queue-vehicle-name {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .queue-issue {
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .issue-critical { color: var(--red); }
+    .issue-warning { color: var(--yellow); }
+    .issue-info { color: var(--teal); }
+
+    .queue-rec {
+      font-size: 11px;
+      color: var(--text-secondary);
+      line-height: 1.4;
+      margin-top: 4px;
+    }
+
+    .rankings-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .ranking-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 12px;
+      background: rgba(255,255,255,0.01);
+      border-radius: 8px;
+      border: 1px solid rgba(255,255,255,0.02);
+    }
+
+    .ranking-label {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .ranking-category {
+      font-size: 10px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+    }
+
+    .ranking-vehicle-name {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .ranking-value {
+      font-size: 12px;
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 700;
+      color: var(--teal);
+      background: rgba(0, 229, 255, 0.05);
+      padding: 4px 8px;
+      border-radius: 6px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="app-container">
+    
+    <!-- HEADER BAR -->
+    <header>
+      <div class="logo-section">
+        <div class="logo-icon">
+          <i data-lucide="zap" stroke-width="2.5" style="fill: var(--bg-color)"></i>
+        </div>
+        <div class="logo-text">
+          <span class="logo-title">VoltSense Edge</span>
+          <span class="logo-subtitle">Fleet Battery Stress Intelligence Platform</span>
+        </div>
+      </div>
+      
+      <div class="header-info">
+        <a href="dashboard.html" class="device-badge" style="color: var(--teal); text-decoration: none; display: flex; align-items: center; gap: 6px;" title="Real-Time Prototype Dashboard">
+          <i data-lucide="cpu" size="14"></i>
+          <span>Prototype Lab</span>
+        </a>
+        
+        <div class="device-badge" style="color: var(--yellow)" id="modeBadge">
+          <i data-lucide="activity" size="14"></i>
+          <span id="modeBadgeText">Local Server Mode</span>
+        </div>
+        
+        <div class="status-badge" id="connectionBadge">
+          <span class="status-dot"></span>
+          <span id="connStatusText">Live Sync</span>
+        </div>
+        
+        <button class="btn-settings" onclick="openSettings()" title="Firebase Credentials Override">
+          <i data-lucide="settings" size="16"></i>
+        </button>
+      </div>
+    </header>
+
+    <!-- TOP ROW: FLEET SUMMARY CARDS -->
+    <div class="fleet-summary-grid">
+      
+      <!-- Card 1: Healthy Vehicles -->
+      <div class="summary-card">
+        <div class="summary-card-glow" style="background: var(--green);"></div>
+        <div class="summary-card-title">
+          <i data-lucide="check-circle" size="12" style="color: var(--green)"></i>
+          Healthy Vehicles
+        </div>
+        <div class="summary-card-value" id="fleetHealthyCount" style="color: var(--green)">-</div>
+      </div>
+
+      <!-- Card 2: Stressed Vehicles -->
+      <div class="summary-card">
+        <div class="summary-card-glow" style="background: var(--yellow);"></div>
+        <div class="summary-card-title">
+          <i data-lucide="alert-triangle" size="12" style="color: var(--yellow)"></i>
+          Stressed Vehicles
+        </div>
+        <div class="summary-card-value" id="fleetStressCount" style="color: var(--yellow)">-</div>
+      </div>
+
+      <!-- Card 3: Risk Vehicles -->
+      <div class="summary-card">
+        <div class="summary-card-glow" style="background: var(--red);"></div>
+        <div class="summary-card-title">
+          <i data-lucide="alert-octagon" size="12" style="color: var(--red)"></i>
+          Risk Vehicles
+        </div>
+        <div class="summary-card-value" id="fleetRiskCount" style="color: var(--red)">-</div>
+      </div>
+
+      <!-- Card 4: Fleet Stress Index -->
+      <div class="summary-card">
+        <div class="summary-card-glow" style="background: var(--teal);"></div>
+        <div class="summary-card-title">
+          <i data-lucide="trending-up" size="12" style="color: var(--teal)"></i>
+          Fleet Stress Index
+        </div>
+        <div class="summary-card-value" id="fleetStressIndex" style="color: var(--teal)">-%</div>
+      </div>
+
+    </div>
+
+    <!-- MAIN TWO-COLUMN FLEET LAYOUT -->
+    <div class="fleet-layout">
+      
+      <!-- Left Column: Vehicle Cards List -->
+      <div class="vehicle-list">
+        
+        <!-- Vehicle 01: VoltSense Prototype (LIVE) -->
+        <div class="vehicle-card" id="card_vehicle01">
+          <div class="vehicle-header">
+            <div class="vehicle-title-area">
+              <div class="vehicle-name">Vehicle 01 (VoltSense Prototype)</div>
+              <div class="vehicle-type">Operational Profile: Lab Hardware Prototype</div>
+            </div>
+            <div class="vehicle-badges">
+              <div class="live-indicator">
+                <span class="live-dot"></span>
+                <span>LIVE</span>
+              </div>
+              <span class="health-badge health-Healthy" id="v01_badge">Healthy</span>
+            </div>
+          </div>
+
+          <div class="vehicle-metrics-row">
+            <div class="mini-metric">
+              <span class="mini-metric-label">Voltage</span>
+              <span class="mini-metric-value" id="v01_volt">-.-- V</span>
+            </div>
+            <div class="mini-metric">
+              <span class="mini-metric-label">Current</span>
+              <span class="mini-metric-value" id="v01_curr">-.-- A</span>
+            </div>
+            <div class="mini-metric">
+              <span class="mini-metric-label">Temperature</span>
+              <span class="mini-metric-value" id="v01_temp">-.-- °C</span>
+            </div>
+            <div class="mini-metric">
+              <span class="mini-metric-label">Stress Score</span>
+              <span class="mini-metric-value" id="v01_stress">--%</span>
+            </div>
+          </div>
+
+          <!-- Today's Live Summary Section (Dynamic Cloud Diagnostics) -->
+          <div class="live-summary-section" id="v01_live_summary" style="display: none;">
+            <div class="live-summary-header">
+              <i data-lucide="cloud-lightning" size="13"></i>
+              <span>Today's Operation Summary (Real-Time Cloud Diagnostics)</span>
+            </div>
+            <div class="live-summary-stats">
+              <div>Ride Duration: <strong id="v01_ride_duration">- mins</strong></div>
+              <div>Avg Current: <strong id="v01_avg_curr">- A</strong></div>
+              <div>Peak Temp: <strong id="v01_peak_temp">- °C</strong></div>
+              <div>Stress Events: <strong id="v01_stress_events">-</strong></div>
+            </div>
+            <div class="live-summary-rec">
+              <i data-lucide="activity" size="13" style="color: var(--teal); flex-shrink:0; margin-top:2px;"></i>
+              <span id="v01_recommendation">Evaluating telemetry logs...</span>
+            </div>
+          </div>
+
+          <div class="vehicle-footer">
+            <div class="last-updated">
+              <i data-lucide="clock" size="12"></i>
+              <span>Last updated: </span><span id="v01_updated" style="font-family: 'JetBrains Mono', monospace;">--:--:--</span>
+            </div>
+            <a href="analytics.html?vehicle=vehicle01" class="btn-report">
+              View Analytics Report
+              <i data-lucide="chevron-right" size="14"></i>
+            </a>
+          </div>
+        </div>
+
+        <!-- Vehicle 02: Delivery Rider -->
+        <div class="vehicle-card" id="card_vehicle02">
+          <div class="vehicle-header">
+            <div class="vehicle-title-area">
+              <div class="vehicle-name">Vehicle 02 (Delivery Rider EV-02)</div>
+              <div class="vehicle-type">Operational Profile: Commercial Delivery Rider</div>
+            </div>
+            <div class="vehicle-badges">
+              <span class="health-badge health-Stress" id="v02_badge">Stress</span>
+            </div>
+          </div>
+
+          <div class="vehicle-metrics-row">
+            <div class="mini-metric">
+              <span class="mini-metric-label">Voltage</span>
+              <span class="mini-metric-value" id="v02_volt">-.-- V</span>
+            </div>
+            <div class="mini-metric">
+              <span class="mini-metric-label">Current</span>
+              <span class="mini-metric-value" id="v02_curr">-.-- A</span>
+            </div>
+            <div class="mini-metric">
+              <span class="mini-metric-label">Temperature</span>
+              <span class="mini-metric-value" id="v02_temp">-.-- °C</span>
+            </div>
+            <div class="mini-metric">
+              <span class="mini-metric-label">Stress Score</span>
+              <span class="mini-metric-value" id="v02_stress">--%</span>
+            </div>
+          </div>
+
+          <div class="vehicle-footer">
+            <div class="last-updated">
+              <i data-lucide="clock" size="12"></i>
+              <span>Last updated: </span><span id="v02_updated" style="font-family: 'JetBrains Mono', monospace;">--:--:--</span>
+            </div>
+            <a href="analytics.html?vehicle=vehicle02" class="btn-report">
+              View Analytics Report
+              <i data-lucide="chevron-right" size="14"></i>
+            </a>
+          </div>
+        </div>
+
+        <!-- Vehicle 03: Campus Vehicle -->
+        <div class="vehicle-card" id="card_vehicle03">
+          <div class="vehicle-header">
+            <div class="vehicle-title-area">
+              <div class="vehicle-name">Vehicle 03 (Campus Shuttle EV-03)</div>
+              <div class="vehicle-type">Operational Profile: Campus Mobility Shuttle</div>
+            </div>
+            <div class="vehicle-badges">
+              <span class="health-badge health-Healthy" id="v03_badge">Healthy</span>
+            </div>
+          </div>
+
+          <div class="vehicle-metrics-row">
+            <div class="mini-metric">
+              <span class="mini-metric-label">Voltage</span>
+              <span class="mini-metric-value" id="v03_volt">-.-- V</span>
+            </div>
+            <div class="mini-metric">
+              <span class="mini-metric-label">Current</span>
+              <span class="mini-metric-value" id="v03_curr">-.-- A</span>
+            </div>
+            <div class="mini-metric">
+              <span class="mini-metric-label">Temperature</span>
+              <span class="mini-metric-value" id="v03_temp">-.-- °C</span>
+            </div>
+            <div class="mini-metric">
+              <span class="mini-metric-label">Stress Score</span>
+              <span class="mini-metric-value" id="v03_stress">--%</span>
+            </div>
+          </div>
+
+          <div class="vehicle-footer">
+            <div class="last-updated">
+              <i data-lucide="clock" size="12"></i>
+              <span>Last updated: </span><span id="v03_updated" style="font-family: 'JetBrains Mono', monospace;">--:--:--</span>
+            </div>
+            <a href="analytics.html?vehicle=vehicle03" class="btn-report">
+              View Analytics Report
+              <i data-lucide="chevron-right" size="14"></i>
+            </a>
+          </div>
+        </div>
+
+        <!-- Vehicle 04: Warehouse Vehicle -->
+        <div class="vehicle-card" id="card_vehicle04">
+          <div class="vehicle-header">
+            <div class="vehicle-title-area">
+              <div class="vehicle-name">Vehicle 04 (Warehouse Forklift EV-04)</div>
+              <div class="vehicle-type">Operational Profile: Material Handling Cycle</div>
+            </div>
+            <div class="vehicle-badges">
+              <span class="health-badge health-Risk" id="v04_badge">Risk</span>
+            </div>
+          </div>
+
+          <div class="vehicle-metrics-row">
+            <div class="mini-metric">
+              <span class="mini-metric-label">Voltage</span>
+              <span class="mini-metric-value" id="v04_volt">-.-- V</span>
+            </div>
+            <div class="mini-metric">
+              <span class="mini-metric-label">Current</span>
+              <span class="mini-metric-value" id="v04_curr">-.-- A</span>
+            </div>
+            <div class="mini-metric">
+              <span class="mini-metric-label">Temperature</span>
+              <span class="mini-metric-value" id="v04_temp">-.-- °C</span>
+            </div>
+            <div class="mini-metric">
+              <span class="mini-metric-label">Stress Score</span>
+              <span class="mini-metric-value" id="v04_stress">--%</span>
+            </div>
+          </div>
+
+          <div class="vehicle-footer">
+            <div class="last-updated">
+              <i data-lucide="clock" size="12"></i>
+              <span>Last updated: </span><span id="v04_updated" style="font-family: 'JetBrains Mono', monospace;">--:--:--</span>
+            </div>
+            <a href="analytics.html?vehicle=vehicle04" class="btn-report">
+              View Analytics Report
+              <i data-lucide="chevron-right" size="14"></i>
+            </a>
+          </div>
+        </div>
+
+        <!-- Vehicle 05: Rental Scooter -->
+        <div class="vehicle-card" id="card_vehicle05">
+          <div class="vehicle-header">
+            <div class="vehicle-title-area">
+              <div class="vehicle-name">Vehicle 05 (Rental Scooter EV-05)</div>
+              <div class="vehicle-type">Operational Profile: Public Shared Commutes</div>
+            </div>
+            <div class="vehicle-badges">
+              <span class="health-badge health-Healthy" id="v05_badge">Healthy</span>
+            </div>
+          </div>
+
+          <div class="vehicle-metrics-row">
+            <div class="mini-metric">
+              <span class="mini-metric-label">Voltage</span>
+              <span class="mini-metric-value" id="v05_volt">-.-- V</span>
+            </div>
+            <div class="mini-metric">
+              <span class="mini-metric-label">Current</span>
+              <span class="mini-metric-value" id="v05_curr">-.-- A</span>
+            </div>
+            <div class="mini-metric">
+              <span class="mini-metric-label">Temperature</span>
+              <span class="mini-metric-value" id="v05_temp">-.-- °C</span>
+            </div>
+            <div class="mini-metric">
+              <span class="mini-metric-label">Stress Score</span>
+              <span class="mini-metric-value" id="v05_stress">--%</span>
+            </div>
+          </div>
+
+          <div class="vehicle-footer">
+            <div class="last-updated">
+              <i data-lucide="clock" size="12"></i>
+              <span>Last updated: </span><span id="v05_updated" style="font-family: 'JetBrains Mono', monospace;">--:--:--</span>
+            </div>
+            <a href="analytics.html?vehicle=vehicle05" class="btn-report">
+              View Analytics Report
+              <i data-lucide="chevron-right" size="14"></i>
+            </a>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Right Column: Sidebar (Maintenance Queue & rankings) -->
+      <div class="side-panel">
+        
+        <!-- MAINTENANCE QUEUE WIDGET -->
+        <div class="side-widget">
+          <div class="widget-title">
+            <i data-lucide="wrench" style="color: var(--yellow);"></i>
+            <span>Fleet Maintenance Queue</span>
+          </div>
+          <div class="queue-list" id="maintenanceQueue">
+            <!-- Loading placeholder -->
+            <div style="font-size: 13px; color: var(--text-muted);">Loading maintenance metrics...</div>
+          </div>
+        </div>
+
+        <!-- FLEET RANKINGS WIDGET -->
+        <div class="side-widget">
+          <div class="widget-title">
+            <i data-lucide="trophy" style="color: var(--teal);"></i>
+            <span>Fleet Operation Rankings</span>
+          </div>
+          <div class="rankings-list" id="fleetRankings">
+            <!-- Loading placeholder -->
+            <div style="font-size: 13px; color: var(--text-muted);">Loading operation ranks...</div>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- FOOTER -->
+    <footer style="text-align: center; padding: 24px; font-size: 11px; color: var(--text-muted); border-top: 1px solid var(--border-color); margin-top: 40px;">
+      VoltSense Edge Fleet Pipeline Suite — Powered by CART Decision Trees & Firestore. Updated live.
+      <br>
+      Fleet Clock: <span id="liveClock" style="font-family: 'JetBrains Mono', monospace;">00:00:00</span>
+    </footer>
+
+  </div>
+
+  <!-- CONFIGURATION SETTINGS MODAL -->
+  <div class="modal-overlay" id="settingsModal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 class="modal-title">Firebase Credentials Configuration</h3>
+        <button class="modal-close-btn" onclick="closeSettings()">
+          <i data-lucide="x" size="20"></i>
+        </button>
+      </div>
+      
+      <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 20px;">
+        To receive real-time updates directly from your Firestore instance, paste your Firebase client SDK configuration JSON object below. If left blank, the client defaults to Local Server polling mode.
+      </p>
+      
+      <form onsubmit="saveSettings(event)">
+        <div class="form-group">
+          <label class="form-label" for="firebaseConfigInput">Firebase Web Config JSON</label>
+          <textarea 
+            class="form-input form-textarea" 
+            id="firebaseConfigInput" 
+            placeholder='{
+  "apiKey": "AIzaSy...",
+  "authDomain": "your-project.firebaseapp.com",
+  "projectId": "your-project-id",
+  "storageBucket": "your-project.appspot.com",
+  "messagingSenderId": "123456789",
+  "appId": "1:1234:web:abcd"
+}'></textarea>
+        </div>
+        
+        <button type="submit" class="btn-primary">Save Config & Reload</button>
+        <button type="button" class="btn-secondary" onclick="closeSettings()">Cancel</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Firebase Client JS integration module -->
+  <script src="js/firebase.js"></script>
+
+  <!-- Script logic for Fleet Command Center -->
+  <script>
+    let isFirebaseMode = false;
+    let pollingInterval = null;
+
+    // Helper to parse any timestamp representation robustly into a JS Date object
+    function parseTimestamp(timestamp) {
+      if (!timestamp) return new Date();
+      if (timestamp instanceof Date) return timestamp;
+      if (typeof timestamp === 'string') {
+        const d = new Date(timestamp);
+        return isNaN(d.getTime()) ? new Date() : d;
+      }
+      if (typeof timestamp === 'number') {
+        return new Date(timestamp);
+      }
+      // Firestore Timestamp object: { seconds, nanoseconds } or { _seconds, _nanoseconds }
+      const seconds = timestamp.seconds !== undefined ? timestamp.seconds : timestamp._seconds;
+      if (seconds !== undefined) {
+        return new Date(seconds * 1000);
+      }
+      if (typeof timestamp.toDate === 'function') {
+        return timestamp.toDate();
+      }
+      const d = new Date(timestamp);
+      return isNaN(d.getTime()) ? new Date() : d;
+    }
+
+    // Helper to format timestamps
+    function getFormattedTime(timestamp) {
+      const d = parseTimestamp(timestamp);
+      return d.toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    }
+
+    // Sync Clock
+    function syncClock() {
+      const clockEl = document.getElementById('liveClock');
+      if (clockEl) {
+        clockEl.textContent = getFormattedTime();
+      }
+    }
+
+    // Settings Modal handlers
+    function openSettings() {
+      document.getElementById('settingsModal').classList.add('active');
+    }
+
+    function closeSettings() {
+      document.getElementById('settingsModal').classList.remove('active');
+    }
+
+    function saveSettings(event) {
+      event.preventDefault();
+      const configInput = document.getElementById('firebaseConfigInput').value.trim();
+      
+      if (!configInput) {
+        localStorage.removeItem('voltsense_firebase_config');
+        alert('Firebase credentials cleared. Reverting to HTTP polling mode.');
+        window.location.reload();
+        return;
+      }
+      
+      try {
+        const parsed = JSON.parse(configInput);
+        if (!parsed.projectId || !parsed.apiKey) {
+          alert('Error: Invalid Firebase configuration object structure.');
+          return;
+        }
+        localStorage.setItem('voltsense_firebase_config', JSON.stringify(parsed));
+        alert('Firebase configuration saved! Reloading...');
+        window.location.reload();
+      } catch (err) {
+        alert('Error parsing JSON configuration. Ensure it is valid JSON.');
+      }
+    }
+
+    // Update Vehicle UI Card
+    function updateVehicleCard(vehicleId, data) {
+      if (!data) return;
+
+      const { voltage, current, temp, healthStatus, stressScore, lastUpdated, summary } = data;
+      
+      // Update values
+      document.getElementById(`v${vehicleId.substr(-2)}_volt`).textContent = Number(voltage).toFixed(2) + ' V';
+      document.getElementById(`v${vehicleId.substr(-2)}_curr`).textContent = Number(current).toFixed(2) + ' A';
+      document.getElementById(`v${vehicleId.substr(-2)}_temp`).textContent = Number(temp).toFixed(1) + ' °C';
+      document.getElementById(`v${vehicleId.substr(-2)}_stress`).textContent = Number(stressScore).toFixed(0) + '%';
+      document.getElementById(`v${vehicleId.substr(-2)}_updated`).textContent = getFormattedTime(lastUpdated);
+
+      // Badge update
+      const badge = document.getElementById(`v${vehicleId.substr(-2)}_badge`);
+      badge.textContent = healthStatus;
+      badge.className = `health-badge health-${healthStatus}`;
+
+      // If vehicle 01, update Today's Live Summary
+      if (vehicleId === 'vehicle01' && summary) {
+        document.getElementById('v01_live_summary').style.display = 'flex';
+        document.getElementById('v01_ride_duration').textContent = summary.rideDuration + ' mins';
+        document.getElementById('v01_avg_curr').textContent = Number(summary.averageCurrentDraw).toFixed(2) + ' A';
+        document.getElementById('v01_peak_temp').textContent = Number(summary.peakTemperature).toFixed(1) + ' °C';
+        document.getElementById('v01_stress_events').textContent = summary.stressEvents;
+        document.getElementById('v01_recommendation').textContent = summary.recommendation;
+      }
+    }
+
+    // Render Fleet Wide Stats
+    function renderFleetSummary(data) {
+      if (!data) return;
+      document.getElementById('fleetHealthyCount').textContent = data.healthyCount;
+      document.getElementById('fleetStressCount').textContent = data.stressCount;
+      document.getElementById('fleetRiskCount').textContent = data.riskCount;
+      document.getElementById('fleetStressIndex').textContent = data.fleetStressIndex + '%';
+
+      // Update maintenance queue
+      const queueListEl = document.getElementById('maintenanceQueue');
+      if (queueListEl && data.maintenanceQueue) {
+        queueListEl.innerHTML = data.maintenanceQueue.map(item => `
+          <div class="queue-item border-${item.severity}">
+            <div class="queue-header">
+              <span class="queue-vehicle-name">${item.name}</span>
+              <span class="queue-issue issue-${item.severity}">${item.issue}</span>
+            </div>
+            <div class="queue-rec">${item.recommendation}</div>
+          </div>
+        `).join('');
+      }
+
+      // Update rankings
+      const rankingsListEl = document.getElementById('fleetRankings');
+      if (rankingsListEl && data.rankings) {
+        const { mostStable, highestStress, highestThermal, mostAggressive } = data.rankings;
+        rankingsListEl.innerHTML = `
+          <div class="ranking-item">
+            <div class="ranking-label">
+              <span class="ranking-category">Most Stable</span>
+              <span class="ranking-vehicle-name">${mostStable ? mostStable.name : '-'}</span>
+            </div>
+            <span class="ranking-value" style="color: var(--green); background: rgba(0, 230, 118, 0.05);">${mostStable ? mostStable.value : '-'}</span>
+          </div>
+          <div class="ranking-item">
+            <div class="ranking-label">
+              <span class="ranking-category">Highest Stress</span>
+              <span class="ranking-vehicle-name">${highestStress ? highestStress.name : '-'}</span>
+            </div>
+            <span class="ranking-value" style="color: var(--red); background: rgba(255, 82, 82, 0.05);">${highestStress ? highestStress.value : '-'}</span>
+          </div>
+          <div class="ranking-item">
+            <div class="ranking-label">
+              <span class="ranking-category">Highest Thermal</span>
+              <span class="ranking-vehicle-name">${highestThermal ? highestThermal.name : '-'}</span>
+            </div>
+            <span class="ranking-value" style="color: var(--orange); background: rgba(255, 145, 0, 0.05);">${highestThermal ? highestThermal.value : '-'}</span>
+          </div>
+          <div class="ranking-item">
+            <div class="ranking-label">
+              <span class="ranking-category">Most Aggressive</span>
+              <span class="ranking-vehicle-name">${mostAggressive ? mostAggressive.name : '-'}</span>
+            </div>
+            <span class="ranking-value">${mostAggressive ? mostAggressive.value : '-'}</span>
+          </div>
+        `;
+      }
+    }
+
+    // Local polling fallback loop
+    function startHttpPolling() {
+      if (pollingInterval) clearInterval(pollingInterval);
+      
+      const fetchFleet = async () => {
+        try {
+          // 1. Get summary aggregates
+          const summaryRes = await fetch('/api/fleet/summary');
+          if (summaryRes.ok) {
+            const summary = await summaryRes.json();
+            renderFleetSummary(summary.data);
+          }
+          
+          // 2. Get individual vehicles
+          const vehiclesRes = await fetch('/api/fleet/vehicles');
+          if (vehiclesRes.ok) {
+            const vehicles = await vehiclesRes.json();
+            vehicles.data.forEach(v => {
+              updateVehicleCard(v.vehicleId, v);
+            });
+          }
+        } catch (err) {
+          console.error('HTTP Polling Fleet Error:', err.message);
+        }
+      };
+
+      fetchFleet();
+      pollingInterval = setInterval(fetchFleet, 3000);
+    }
+
+    // Firestore setup real-time listeners for all vehicles
+    function setupFirestoreFleetListeners() {
+      const dbInstance = window.getFirestoreDb();
+      if (!dbInstance) return false;
+
+      console.log('🔥 Setting up real-time listener bindings for fleet...');
+      const vehicleIds = ['vehicle01', 'vehicle02', 'vehicle03', 'vehicle04', 'vehicle05'];
+
+      // Keep track of loaded vehicles locally to compute aggregate fleet summaries on client-side
+      const localFleetMap = {};
+
+      const aggregateFleetSummary = () => {
+        const vehicles = Object.values(localFleetMap);
+        if (vehicles.length === 0) return;
+
+        let healthyCount = 0;
+        let stressCount = 0;
+        let riskCount = 0;
+        let totalStressScore = 0;
+
+        vehicles.forEach(v => {
+          if (v.healthStatus === 'Healthy') healthyCount++;
+          else if (v.healthStatus === 'Stress') stressCount++;
+          else if (v.healthStatus === 'Risk') riskCount++;
+          totalStressScore += (v.stressScore || 0);
+        });
+
+        const fleetStressIndex = Math.round(totalStressScore / vehicles.length);
+
+        // Standard maintenance queue descriptions matching backend
+        const maintenanceQueue = [];
+        vehicles.forEach(v => {
+          if (v.vehicleId === 'vehicle04') {
+            maintenanceQueue.push({
+              vehicleId: v.vehicleId,
+              name: v.name,
+              issue: 'Repeated Thermal Events',
+              severity: 'critical',
+              recommendation: v.summary ? v.summary.recommendation : 'Inspect cooling vents'
+            });
+          } else if (v.vehicleId === 'vehicle02') {
+            maintenanceQueue.push({
+              vehicleId: v.vehicleId,
+              name: v.name,
+              issue: 'Repeated Throttle Stress Events',
+              severity: 'warning',
+              recommendation: v.summary ? v.summary.recommendation : 'Train driver on smooth acceleration'
+            });
+          } else if (v.vehicleId === 'vehicle05') {
+            maintenanceQueue.push({
+              vehicleId: v.vehicleId,
+              name: v.name,
+              issue: 'Sensor/Chassis Check Recommended',
+              severity: 'info',
+              recommendation: v.summary ? v.summary.recommendation : 'Chassis vibration check'
+            });
+          }
+        });
+
+        // Compute rankings
+        const stableVehicles = [...vehicles].sort((a, b) => (a.stressScore || 0) - (b.stressScore || 0));
+        const highestStressVehicles = [...vehicles].sort((a, b) => (b.stressScore || 0) - (a.stressScore || 0));
+        
+        const thermalVehicles = [...vehicles].sort((a, b) => {
+          const tempA = a.summary ? a.summary.averageTemperature : 0;
+          const tempB = b.summary ? b.summary.averageTemperature : 0;
+          return tempB - tempA;
+        });
+        
+        const currentVehicles = [...vehicles].sort((a, b) => {
+          const currA = a.summary ? a.summary.peakCurrentDraw : 0;
+          const currB = b.summary ? b.summary.peakCurrentDraw : 0;
+          return currB - currA;
+        });
+
+        const rankings = {
+          mostStable: stableVehicles[0] ? { vehicleId: stableVehicles[0].vehicleId, name: stableVehicles[0].name, value: `${stableVehicles[0].stressScore}% Stress Index` } : null,
+          highestStress: highestStressVehicles[0] ? { vehicleId: highestStressVehicles[0].vehicleId, name: highestStressVehicles[0].name, value: `${highestStressVehicles[0].stressScore}% Stress Index` } : null,
+          highestThermal: thermalVehicles[0] ? { vehicleId: thermalVehicles[0].vehicleId, name: thermalVehicles[0].name, value: `${thermalVehicles[0].summary ? thermalVehicles[0].summary.averageTemperature : 0}°C Avg Temp` } : null,
+          mostAggressive: currentVehicles[0] ? { vehicleId: currentVehicles[0].vehicleId, name: currentVehicles[0].name, value: `${currentVehicles[0].summary ? currentVehicles[0].summary.peakCurrentDraw : 0}A Peak Current` } : null
+        };
+
+        renderFleetSummary({
+          healthyCount,
+          stressCount,
+          riskCount,
+          fleetStressIndex,
+          maintenanceQueue,
+          rankings
+        });
+      };
+
+      // Subscribe to each vehicle document
+      vehicleIds.forEach(id => {
+        // vehicleInfo
+        const latestDocRef = id === 'vehicle01'
+          ? dbInstance.collection('battery_data').doc('latest')
+          : dbInstance.collection(id).doc('vehicleInfo');
+
+        latestDocRef.onSnapshot((doc) => {
+            if (doc.exists) {
+              const data = doc.data();
+              localFleetMap[id] = { ...localFleetMap[id], ...data };
+              // Ensure vehicleInfo fields are attached for vehicle01
+              if (id === 'vehicle01') {
+                localFleetMap[id].vehicleId = 'vehicle01';
+                localFleetMap[id].name = 'VoltSense Prototype';
+                localFleetMap[id].status = 'LIVE';
+                localFleetMap[id].type = 'Prototype';
+                localFleetMap[id].healthStatus = data.status || 'Healthy';
+              }
+              updateVehicleCard(id, localFleetMap[id]);
+              aggregateFleetSummary();
+            }
+          }, err => console.error(`Error loading real-time info for ${id}:`, err));
+
+        // summary
+        dbInstance.collection(id).doc('summary')
+          .onSnapshot((doc) => {
+            if (doc.exists) {
+              const summaryData = doc.data();
+              localFleetMap[id] = { ...localFleetMap[id], summary: summaryData };
+              updateVehicleCard(id, localFleetMap[id]);
+              aggregateFleetSummary();
+            }
+          }, err => console.error(`Error loading real-time summary for ${id}:`, err));
+      });
+
+      return true;
+    }
+
+    // Initialization on Page Load
+    window.addEventListener('DOMContentLoaded', () => {
+      syncClock();
+      setInterval(syncClock, 1000);
+
+      // Pre-fill settings modal input
+      const currentConfig = localStorage.getItem('voltsense_firebase_config');
+      if (currentConfig) {
+        try {
+          document.getElementById('firebaseConfigInput').value = JSON.stringify(JSON.parse(currentConfig), null, 2);
+        } catch(e) {}
+      }
+
+      // Initialize Firebase or fallback
+      isFirebaseMode = window.initFirebaseClient ? window.initFirebaseClient() : false;
+
+      const modeBadgeText = document.getElementById('modeBadgeText');
+      const connectionBadge = document.getElementById('connectionBadge');
+      const connStatusText = document.getElementById('connStatusText');
+
+      if (isFirebaseMode) {
+        modeBadgeText.textContent = 'Firestore Mode';
+        connStatusText.textContent = 'Connected (Firestore)';
+        connectionBadge.className = 'status-badge';
+
+        const success = setupFirestoreFleetListeners();
+        if (!success) {
+          console.warn('Real-time listeners failed. Falling back to HTTP polling.');
+          startHttpPolling();
+        }
+      } else {
+        modeBadgeText.textContent = 'Local Server Mode';
+        connStatusText.textContent = 'Connected (Polling)';
+        connectionBadge.className = 'status-badge simulation';
+
+        startHttpPolling();
+      }
+
+      lucide.createIcons();
+    });
+
+    window.addEventListener('beforeunload', () => {
+      if (pollingInterval) clearInterval(pollingInterval);
+    });
+  </script>
+</body>
+</html>

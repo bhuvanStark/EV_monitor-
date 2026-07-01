@@ -133,6 +133,13 @@ header {
   display: flex;
   align-items: center;
   gap: 6px;
+  transition: all 0.2s ease;
+}
+
+a.device-badge:hover {
+  background: rgba(0, 229, 255, 0.08);
+  border-color: var(--teal);
+  transform: translateY(-1px);
 }
 
 .status-badge {

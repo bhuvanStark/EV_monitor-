@@ -1,111 +1,94 @@
-# VoltSense Edge — EV Battery Intelligence Suite
+# VoltSense Edge — Fleet Battery Stress Intelligence Platform
 
-VoltSense Edge is a real-time battery diagnostics and classification system. It parses telemetry metrics (`voltage`, `current`, `temp`, `gyro`) from an EV battery pack via an MQTT subscriber, runs real-time classification using an on-device Decision Tree model, and writes diagnostics state to Firebase Firestore. The frontend dashboard connects to Firestore in real-time, rendering active metrics, charts, and actionable safety insights.
+VoltSense Edge is an edge-native, real-time **Fleet Battery Stress Intelligence Platform** designed for commercial EV operators (e.g., Swiggy, Zepto, Blinkit, Yulu, and rental scooter fleets). The platform ingests telemetry data from physical hardware nodes (such as ESP32 microcontrollers) via MQTT, applies local Machine Learning Decision Trees and Cloud AI diagnostics, and generates real-time fleet health stats, maintenance queues, and historical trend analyses.
 
 ---
 
-## 📂 Directory Structure
+## 📂 Project Architecture & Directory Structure
 
 ```
 VoltSense-Edge/
 │
 ├── ml/
 │   ├── generate_synthetic_data.py (Generates CSV telemetry data)
-│   ├── train_model.py             (Trains Decision Tree, saves .pkl, .tflite, and .json)
-│   ├── battery_model.pkl          (Scikit-learn model export)
-│   ├── battery_model.tflite        (TF Lite model export)
+│   ├── train_model.py             (Trains Decision Tree, saves battery_model.json)
 │   ├── battery_model.json         (JSON tree representation for Node.js backend)
 │   └── labels.txt                 (Class labels: Healthy, Stress, Risk)
 │
 ├── backend/
-│   ├── server.js                  (Express server hosting static dashboard & telemetry API)
-│   ├── mqttSubscriber.js          (MQTT client parser & database writer)
-│   ├── firebaseConfig.js          (Firebase Node Admin SDK loader with local DB fallback)
-│   ├── firestoreService.js        (Abstracts database queries and logs)
+│   ├── server.js                  (Express server hosting API endpoints & static dashboard)
+│   ├── mqttSubscriber.js          (MQTT subscriber, local/cloud ML diagnostics parser & summary compiler)
+│   ├── firebaseConfig.js          (Firebase Web SDK loader with robust mock Firestore fallback)
+│   ├── firestoreService.js        (Abstracts database reads/writes for per-vehicle collections)
+│   ├── seedFleetData.js           (Seeding script populating all 5 vehicle profiles)
 │   ├── package.json               (Backend Node dependency configuration)
-│   └── .env                       (MQTT and Firebase connection credentials)
+│   └── .env                       (MQTT and Firebase configuration settings)
 │
 └── frontend/
     ├── index.html                 (Landing Entry Page)
-    ├── dashboard.html             (Instrument-cluster UI dashboard)
+    ├── fleet.html                 (Fleet Command Center Dashboard - Landing Page)
+    ├── dashboard.html             (Instrument-cluster UI dashboard for Lab Prototype)
+    ├── analytics.html             (Per-Vehicle diagnostics intelligence reports page)
     ├── css/
-    │   └── styles.css             (Custom UI styling)
+    │   └── styles.css             (Custom UI styling theme)
     └── js/
         ├── firebase.js            (Configures Firestore listeners)
         ├── dashboard.js           (Drives UI telemetry mapping and modal inputs)
+        ├── analytics.js           (Powers Chart.js trend lines and query parameter routing)
         ├── charts.js              (Manages rolling Chart.js data logs)
         └── insights.js            (Resolves recommendation advice based on states)
 ```
 
 ---
 
-## ⚡ Setup & Execution
+## 🚙 Operational Fleet Scenarios Seeded
 
-### 1. Train the ML Classifier
-Create a Python virtual environment and run the training scripts to output classification weights:
+The platform tracks exactly 5 vehicle slots representing distinct real-world operational scenarios:
+1. **Vehicle 01 (VoltSense Prototype - LIVE):** Feeds directly from the physical hardware (or offline simulator) via MQTT, rendering real-time telemetry updates and Today's Live Summary (ride duration, average load, peak temp, and live safety recommendations).
+2. **Vehicle 02 (Delivery Rider - ACTIVE):** Simulates aggressive delivery logistics cycles with high current draw loads and high chassis vibrations.
+3. **Vehicle 03 (Campus Shuttle - ACTIVE):** Represents smooth transit with low battery load and stable temperature ranges.
+4. **Vehicle 04 (Warehouse Forklift - ACTIVE):** Operates under high ambient temperatures, triggering repeated thermal stress warnings.
+5. **Vehicle 05 (Rental Scooter - ACTIVE):** Models a mixed ride-share scooter suffering frequent chassis vibration anomalies.
 
+---
+
+## ⚡ Quick Start & Setup
+
+### 1. Install Node Dependencies
+Navigate into the backend directory and install package requirements:
 ```bash
-# Navigate to ML directory
-cd ml
-
-# Create virtual environment (if not already created)
-python3 -m venv venv
-source venv/bin/activate
-
-# Install dependencies
-pip install scikit-learn pandas numpy
-
-# Generate synthetic data & train the model
-python generate_synthetic_data.py
-python train_model.py
+cd backend
+npm install
 ```
 
-### 2. Configure Backend Credentials
-Rename the environment variables file and fill in your MQTT broker and Firebase service account path details:
-
+### 2. Configure Environment Settings
+Create a configuration file from the template:
 ```bash
-# Navigate to Backend
-cd ../backend
-
-# Setup environment configuration
 cp .env.example .env
 ```
+Open `.env` and configure:
+* `MQTT_BROKER_URL`: Address of the broker (default: `mqtt://broker.hivemq.com`).
+* `GEMINI_API_KEY`: API Key for advanced Cloud Diagnostics inferences.
+* `USE_SIMULATION`: Set to `true` to run a mock local telemetry publisher and mock local database (`local_db.json`) if running offline without Firestore.
 
-Open `.env` and fill in:
-* `MQTT_BROKER_URL`: Connection string (e.g. `mqtt://broker.hivemq.com` or HiveMQ Cloud host)
-* `MQTT_PORT`: Connection port (typically `1883` or `8883`)
-* `FIREBASE_SERVICE_ACCOUNT_PATH`: Path to your Firebase service account JSON key file.
-* `USE_SIMULATION`: Set to `true` to run a mock local telemetry publisher and mock local database (`local_db.json`) if you do not have MQTT brokers/Firebase credentials ready yet.
-
-### 3. Run the Node.js Backend & Subscriber
-Install backend Node packages and start the subscriber client and server:
-
+### 3. Seed Fleet Scenario Profiles
+Initialize the database with 14 days of realistic, chronological historical data (~300 records per vehicle):
 ```bash
-# Install NPM packages
-npm install
+node seedFleetData.js
+```
 
-# Start MQTT subscriber (runs in background, listening and saving data)
+### 4. Run the Backend Platform
+Start the MQTT Subscriber (ingesting telemetry and generating daily live statistics) and the Express web server:
+```bash
+# Terminal 1: Run MQTT subscriber
 npm run subscriber
 
-# In a separate terminal shell, start the Express dashboard web server:
+# Terminal 2: Run backend server
 npm run start
 ```
 
-### 4. Access the Dashboard UI
-1. Open your browser and head to: **`http://localhost:3000`**
-2. Click **Enter Dashboard**.
-3. **Firestore Live Connection Setup**:
-   * Click the **Settings Gear Icon** in the top right of the dashboard.
-   * Paste your Firebase Client Web SDK configuration credentials:
-     ```json
-     {
-       "apiKey": "YOUR_API_KEY",
-       "authDomain": "YOUR_PROJECT_ID.firebaseapp.com",
-       "projectId": "YOUR_PROJECT_ID",
-       "storageBucket": "YOUR_PROJECT_ID.appspot.com",
-       "messagingSenderId": "YOUR_SENDER_ID",
-       "appId": "YOUR_APP_ID"
-     }
-     ```
-   * Click **Save Config & Reload**.
-   * The dashboard will now automatically initialize the Firebase client and listen to Firestore collections `battery_data` and `battery_history` in real-time! If left empty, it safely falls back to local server REST API pooling.
+### 5. Access the Platform
+1. Open your browser and navigate to: **`http://localhost:3000`**
+2. You will land on the **Fleet Command Center** (`fleet.html`), displaying summary cards (Healthy, Stressed, Risk counts, and the Fleet Stress Index), the 5 vehicle status cards, the maintenance queue, and the fleet rankings.
+3. Click **View Analytics Report** on any vehicle card to load its detailed per-vehicle diagnostics report (`analytics.html?vehicle=vehicleXX`).
+4. Click **Prototype Lab** or **Live Dashboard** in the navigation bar to inspect real-time raw instrument telemetry for the physical prototype.

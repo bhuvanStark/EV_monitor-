@@ -5,7 +5,8 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "subscriber": "node mqttSubscriber.js"
+    "subscriber": "node mqttSubscriber.js",
+    "seed": "node seedHistory.js"
   },
   "dependencies": {
     "cors": "^2.8.5",

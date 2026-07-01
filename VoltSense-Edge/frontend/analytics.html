@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VoltSense Edge — EV Battery Intelligence Analytics</title>
+  
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Exo+2:wght@400;600;700&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  
+  <!-- Style Sheet -->
+  <link rel="stylesheet" href="css/styles.css">
+  
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <!-- Firebase Client SDK (v8 Compat) -->
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+  
+  <style>
+    /* Analytics Page Layout Specifics */
+    .comparison-text {
+      font-size: 12px;
+      color: var(--text-secondary);
+      margin-top: 8px;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    
+    .comparison-highlight {
+      font-weight: 600;
+      color: var(--teal);
+    }
+    
+    .stats-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+    }
+    
+    .stats-table td {
+      padding: 8px 0;
+      font-size: 13px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+    }
+    
+    .stats-table td:last-child {
+      text-align: right;
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 600;
+    }
+    
+    .stats-table tr:last-child td {
+      border-bottom: none;
+    }
+    
+    .trend-indicator {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 8px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    
+    .trend-up {
+      background: rgba(255, 82, 82, 0.08);
+      color: var(--red);
+      border: 1px solid rgba(255, 82, 82, 0.15);
+    }
+    
+    .trend-down {
+      background: rgba(0, 230, 118, 0.08);
+      color: var(--green);
+      border: 1px solid rgba(0, 230, 118, 0.15);
+    }
+    
+    .trend-stable {
+      background: rgba(0, 229, 255, 0.08);
+      color: var(--teal);
+      border: 1px solid rgba(0, 229, 255, 0.15);
+    }
+    
+    .correlation-box {
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 14px;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    
+    .correlation-percentage {
+      font-size: 28px;
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 700;
+      color: var(--yellow);
+      flex-shrink: 0;
+      width: 70px;
+      text-align: center;
+    }
+    
+    .correlation-desc {
+      font-size: 13px;
+      line-height: 1.4;
+      color: var(--text-primary);
+    }
+  </style>
+</head>
+<body>
+
+  <div class="app-container">
+    
+    <!-- HEADER BAR -->
+    <header>
+      <div class="logo-section">
+        <a href="dashboard.html" class="logo-icon" style="text-decoration: none;" title="Return to Dashboard">
+          <i data-lucide="zap" stroke-width="2.5" style="fill: var(--bg-color)"></i>
+        </a>
+        <div class="logo-text">
+          <span class="logo-title">VoltSense Analytics</span>
+          <span class="logo-subtitle">EV Battery Diagnostic Intelligence Report</span>
+        </div>
+      </div>
+      
+      <div class="header-info">
+        <a href="fleet.html" class="device-badge" style="color: var(--green); text-decoration: none; display: flex; align-items: center; gap: 6px;" title="Back to Fleet Command Center">
+          <i data-lucide="layout-grid" size="14"></i>
+          <span>Fleet Command</span>
+        </a>
+
+        <a href="dashboard.html" class="device-badge" style="color: var(--teal); text-decoration: none; display: flex; align-items: center; gap: 6px;" title="Back to Real-Time Dashboard">
+          <i data-lucide="arrow-left" size="14"></i>
+          <span>Live Dashboard</span>
+        </a>
+        
+        <div class="device-badge" id="modeBadge" style="color: var(--yellow);">
+          <i data-lucide="activity" size="14"></i>
+          <span id="modeBadgeText">Local Server Mode</span>
+        </div>
+        
+        <div class="status-badge" id="connectionBadge">
+          <span class="status-dot"></span>
+          <span id="connStatusText">Live Sync</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- SECTION 1: LIVE + HISTORICAL OVERVIEW (TOP GRID) -->
+    <div class="metrics-grid">
+      
+      <!-- Card 1: Latest Status -->
+      <div class="card">
+        <div class="card-title">
+          <i data-lucide="shield"></i>
+          Battery Status
+        </div>
+        <div class="metric-value-container">
+          <span class="metric-value" id="liveStatus" style="color: var(--green)">Healthy</span>
+        </div>
+        <div class="comparison-text" id="statusCompare">
+          <i data-lucide="check-circle" size="12" style="color: var(--green);"></i>
+          <span>Driven by Decision Tree local ML model.</span>
+        </div>
+      </div>
+
+      <!-- Card 2: Stress Score -->
+      <div class="card">
+        <div class="card-title">
+          <i data-lucide="alert-triangle"></i>
+          Stress Index
+        </div>
+        <div class="metric-value-container">
+          <span class="metric-value" id="liveStress">0</span>
+          <span class="metric-unit">%</span>
+        </div>
+        <div class="progress-bar-bg">
+          <div class="progress-bar-fill" id="barStress" style="width: 0%; background: var(--green);"></div>
+        </div>
+        <div class="comparison-text" id="stressCompare">
+          Comparing baseline...
+        </div>
+      </div>
+
+      <!-- Card 3: Pack Temperature -->
+      <div class="card">
+        <div class="card-title">
+          <i data-lucide="thermometer"></i>
+          Current Temp
+        </div>
+        <div class="metric-value-container">
+          <span class="metric-value" id="liveTemp">0.0</span>
+          <span class="metric-unit">°C</span>
+        </div>
+        <div class="comparison-text" id="tempCompare">
+          Comparing baseline...
+        </div>
+      </div>
+
+      <!-- Card 4: Current Draw -->
+      <div class="card">
+        <div class="card-title">
+          <i data-lucide="activity"></i>
+          Current Draw
+        </div>
+        <div class="metric-value-container">
+          <span class="metric-value" id="liveCurrent">0.00</span>
+          <span class="metric-unit">A</span>
+        </div>
+        <div class="comparison-text" id="currentCompare">
+          Comparing baseline...
+        </div>
+      </div>
+
+    </div>
+
+    <!-- MAIN TWO-COLUMN LAYOUT -->
+    <div class="dashboard-grid" style="grid-template-columns: 1.2fr 0.8fr;">
+      
+      <!-- LEFT COLUMN -->
+      <div class="dashboard-col">
+        
+        <!-- SECTION 7: BATTERY INTELLIGENCE SUMMARY -->
+        <div class="card">
+          <div class="card-title">
+            <i data-lucide="brain"></i>
+            Weekly Intelligence Report
+          </div>
+          <div class="insight-box" style="background: rgba(0, 229, 255, 0.04); border-color: rgba(0, 229, 255, 0.2); padding: 18px;">
+            <div class="insight-header" style="font-size: 13px;">
+              <i data-lucide="sparkles" size="14"></i>
+              <span>Integrated AI Diagnostic Summary</span>
+            </div>
+            <div class="insight-text" id="intelligenceSummary" style="font-size: 14px; line-height: 1.6; color: #E2E8F0;">
+              Generating comprehensive battery diagnostics report...
+            </div>
+          </div>
+        </div>
+
+        <!-- SECTION 2: BATTERY STRESS HISTORY CHARTS -->
+        <div class="card">
+          <div class="card-title">
+            <i data-lucide="trending-up"></i>
+            14-Day Battery Stress History
+          </div>
+          <div class="chart-header">
+            <span class="chart-label">Daily Average Stress Index vs Anomaly Events</span>
+          </div>
+          <div class="chart-wrapper" style="height: 250px;">
+            <canvas id="chartStressHistory"></canvas>
+          </div>
+        </div>
+
+        <!-- SECTION 5: RIDING BEHAVIOR CHART -->
+        <div class="card">
+          <div class="card-title">
+            <i data-lucide="navigation"></i>
+            14-Day Riding Smoothness & Vibration Trend
+          </div>
+          <div class="chart-header">
+            <span class="chart-label">Smoothness Rating (%) vs Gyro stability (dps)</span>
+          </div>
+          <div class="chart-wrapper" style="height: 180px;">
+            <canvas id="chartRidingHistory"></canvas>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- RIGHT COLUMN -->
+      <div class="dashboard-col">
+        
+        <!-- SECTION 3: THERMAL ANALYSIS -->
+        <div class="card">
+          <div class="card-title">
+            <i data-lucide="thermometer-snowflake"></i>
+            Thermal Analysis
+          </div>
+          <table class="stats-table">
+            <tr>
+              <td>Current Temperature</td>
+              <td id="thermalCurrent">0.0 °C</td>
+            </tr>
+            <tr>
+              <td>Weekly Average Temperature</td>
+              <td id="thermalWeeklyAvg">0.0 °C</td>
+            </tr>
+            <tr>
+              <td>Weekly Peak Temperature</td>
+              <td id="thermalWeeklyPeak" style="color: var(--yellow)">0.0 °C</td>
+            </tr>
+            <tr>
+              <td>Hours Above Safe Threshold (45°C)</td>
+              <td id="thermalHotHours" style="color: var(--red)">0.0 hrs</td>
+            </tr>
+            <tr>
+              <td>Overall Thermal Trend</td>
+              <td>
+                <span id="thermalTrend" class="trend-indicator trend-stable">Stable</span>
+              </td>
+            </tr>
+          </table>
+        </div>
+
+        <!-- SECTION 4: LOAD ANALYSIS -->
+        <div class="card">
+          <div class="card-title">
+            <i data-lucide="zap"></i>
+            Load & Power Analysis
+          </div>
+          <table class="stats-table">
+            <tr>
+              <td>Average Current Draw</td>
+              <td id="loadAvg">0.0 A</td>
+            </tr>
+            <tr>
+              <td>Peak Current Draw</td>
+              <td id="loadPeak" style="color: var(--yellow)">0.0 A</td>
+            </tr>
+            <tr>
+              <td>High Current Events (> 6.0A)</td>
+              <td id="loadHighEventsCount" style="color: var(--orange)">0</td>
+            </tr>
+            <tr>
+              <td>Voltage Sag Events (&lt; 3.4V)</td>
+              <td id="loadSagEventsCount" style="color: var(--red)">0</td>
+            </tr>
+          </table>
+        </div>
+
+        <!-- SECTION 5: RIDING BEHAVIOR ANALYSIS DETAILS -->
+        <div class="card">
+          <div class="card-title">
+            <i data-lucide="gauge"></i>
+            Riding Behavior Profiling
+          </div>
+          <table class="stats-table">
+            <tr>
+              <td>Current Ride Smoothness</td>
+              <td id="rideSmoothness">100%</td>
+            </tr>
+            <tr>
+              <td>Aggressive Motion Incidents</td>
+              <td id="rideAggressiveIncidents" style="color: var(--orange)">0</td>
+            </tr>
+            <tr>
+              <td>Most Aggressive Day</td>
+              <td id="rideMaxDay" style="font-size: 11px;">-</td>
+            </tr>
+            <tr>
+              <td>Most Stable/Smooth Day</td>
+              <td id="rideMinDay" style="font-size: 11px;">-</td>
+            </tr>
+          </table>
+        </div>
+
+        <!-- SECTION 6: CORRELATION ANALYSIS -->
+        <div class="card">
+          <div class="card-title">
+            <i data-lucide="merge"></i>
+            Stress Event Correlation
+          </div>
+          <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 15px; line-height: 1.4;">
+            Identifying leading battery strain indicators:
+          </p>
+          
+          <div class="correlation-box">
+            <div class="correlation-percentage" id="correlCurrent">0%</div>
+            <div class="correlation-desc">of stress/risk events occurred during high current draw draw (> 4.0A).</div>
+          </div>
+          
+          <div class="correlation-box">
+            <div class="correlation-percentage" id="correlVibration">0%</div>
+            <div class="correlation-desc">coincided with elevated chassis vibration rates (> 40 dps).</div>
+          </div>
+          
+          <div class="correlation-box">
+            <div class="correlation-percentage" id="correlTemp">0%</div>
+            <div class="correlation-desc">developed during elevated thermal temperatures (> 38°C).</div>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+  </div>
+
+  <!-- Footer metadata element -->
+  <footer style="text-align: center; padding: 24px; font-size: 11px; color: var(--text-muted); border-top: 1px solid var(--border-color); margin-top: 40px;">
+    VoltSense Edge Diagnostics Suite — Historical and Real-Time Pipeline Integration.
+    <br>
+    Last Synced: <span id="liveTime" style="font-family: 'JetBrains Mono', monospace; color: var(--text-secondary);">00:00:00</span>
+  </footer>
+
+  <!-- Scripts -->
+  <script src="js/firebase.js"></script>
+  <script src="js/analytics.js?v=2"></script>
+</body>
+</html>

@@ -244,8 +244,11 @@ try {
                 gyro: parseFloat(gyro),
                 ...mlResult
               };
-              await saveLatestTelemetry(fullRecord);
-              await addHistoricalTelemetry(fullRecord);
+              await saveLatestTelemetry(fullRecord, 'vehicle01');
+              await addHistoricalTelemetry(fullRecord, 'vehicle01');
+              
+              // Update daily live summary
+              updateTodaySummary({ ...fullRecord, timestamp: new Date().toISOString() });
             }
           })
           .catch(err => console.error('Error writing Cloud ML telemetry:', err.message));
@@ -275,8 +278,11 @@ try {
         ...mlOutputs
       };
       
-      await saveLatestTelemetry(fullRecord);
-      await addHistoricalTelemetry(fullRecord);
+      await saveLatestTelemetry(fullRecord, 'vehicle01');
+      await addHistoricalTelemetry(fullRecord, 'vehicle01');
+      
+      // Update daily live summary
+      updateTodaySummary({ ...fullRecord, timestamp: new Date().toISOString() });
       
     } catch (err) {
       console.error('❌ Error processing received MQTT message:', err.message);
@@ -294,16 +300,100 @@ try {
 }
 
 let simulationInterval = null;
+let troubleshootingLogged = false;
+
 function handleMQTTFailure() {
   if (process.env.USE_SIMULATION === 'true' && !simulationInterval) {
     console.warn('⚠️ MQTT Broker unavailable. Initiating simulated data loop...');
     startSimulatedPublisher();
+  } else if (process.env.USE_SIMULATION !== 'true' && !troubleshootingLogged) {
+    troubleshootingLogged = true;
+    console.warn('\n================================================================');
+    console.warn('⚠️ MQTT Broker Connection Failed. Troubleshooting checklist:');
+    console.warn('1. RUN OFFLINE SIMULATION: Set USE_SIMULATION=true in VoltSense-Edge/backend/.env');
+    console.warn('   This runs the pipeline offline without requiring ESP32 hardware or MQTT broker connection.');
+    console.warn('2. SWITCH MQTT BROKERS: Your ISP/network might block HiveMQ. In VoltSense-Edge/backend/.env,');
+    console.warn('   change MQTT_BROKER_URL to mqtt://broker.emqx.io or mqtt://test.mosquitto.org');
+    console.warn('   (Ensure your ESP32 code is updated to match the new broker address).');
+    console.warn('3. CHECK DIRECTORY: Ensure you run "npm run subscriber" from VoltSense-Edge/backend directory.');
+    console.warn('================================================================\n');
   }
 }
 
 if (process.env.USE_SIMULATION === 'true') {
   console.log('💡 Simulation mode is active. Simulated publisher will feed data in background.');
   startSimulatedPublisher();
+}
+
+// Local memory to buffer today's live telemetry records for Vehicle 01 summary
+const todayLogs = [];
+
+async function updateTodaySummary(record) {
+  const now = new Date();
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  
+  // Clean logs that are not from today
+  while (todayLogs.length > 0 && new Date(todayLogs[0].timestamp).getTime() < todayStart) {
+    todayLogs.shift();
+  }
+  
+  todayLogs.push(record);
+  
+  const totalRecords = todayLogs.length;
+  let stressEvents = 0;
+  let riskEvents = 0;
+  let peakTemperature = 0;
+  let totalTemp = 0;
+  let peakCurrentDraw = 0;
+  let totalCurrent = 0;
+  
+  todayLogs.forEach(log => {
+    if (log.status === 'Stress') stressEvents++;
+    if (log.status === 'Risk') riskEvents++;
+    if (log.temp > peakTemperature) peakTemperature = log.temp;
+    totalTemp += log.temp;
+    if (log.current > peakCurrentDraw) peakCurrentDraw = log.current;
+    totalCurrent += log.current;
+  });
+  
+  const averageTemperature = parseFloat((totalTemp / totalRecords).toFixed(1));
+  const averageCurrentDraw = parseFloat((totalCurrent / totalRecords).toFixed(2));
+  
+  const firstTimestamp = new Date(todayLogs[0].timestamp).getTime();
+  const lastTimestamp = new Date(todayLogs[totalRecords - 1].timestamp).getTime();
+  const rideDuration = Math.max(1, Math.round((lastTimestamp - firstTimestamp) / 60000));
+  
+  let recommendation = 'All parameters are optimal. Riding behavior is highly efficient and battery thermals are healthy.';
+  if (peakTemperature > 48) {
+    recommendation = 'CRITICAL: High battery temperature detected today. Inspect pack thermal pathways immediately.';
+  } else if (peakTemperature > 40) {
+    recommendation = 'WARNING: Elevated temperature detected. Ride smoothly and avoid heavy load periods.';
+  } else if (averageCurrentDraw > 4.5) {
+    recommendation = 'WARNING: Aggressive acceleration pattern. Advise rider to smooth out throttle inputs.';
+  } else if (stressEvents > 15) {
+    recommendation = 'NOTICE: Frequent stress events logged today. Schedule maintenance diagnostics check.';
+  }
+  
+  const summary = {
+    totalRecords,
+    stressEvents,
+    riskEvents,
+    peakTemperature: parseFloat(peakTemperature.toFixed(1)),
+    averageTemperature,
+    peakCurrentDraw: parseFloat(peakCurrentDraw.toFixed(1)),
+    averageCurrentDraw,
+    rideDuration,
+    recommendation,
+    lastUpdated: new Date().toISOString()
+  };
+  
+  try {
+    const { db } = require('./firebaseConfig');
+    await db.collection('vehicle01').doc('summary').set(summary, { merge: true });
+    console.log('📈 Updated Today\'s Live Summary for vehicle01:', summary);
+  } catch (err) {
+    console.error('Error updating live summary:', err.message);
+  }
 }
 
 function startSimulatedPublisher() {
@@ -340,8 +430,12 @@ function startSimulatedPublisher() {
       const mlOutputs = processML(voltage, current, temp, gyro);
       const record = { voltage, current, temp, gyro, ...mlOutputs };
       
-      await saveLatestTelemetry(record);
-      await addHistoricalTelemetry(record);
+      await saveLatestTelemetry(record, 'vehicle01');
+      await addHistoricalTelemetry(record, 'vehicle01');
+      
+      // Update daily live summary
+      updateTodaySummary({ ...record, timestamp: new Date().toISOString() });
+      
       console.log(`[SIMULATOR TELEMETRY PUBLISH] -> V: ${voltage}V, I: ${current}A, T: ${temp}°C, G: ${gyro} dps | Status: ${mlOutputs.status}`);
       
     } catch (err) {

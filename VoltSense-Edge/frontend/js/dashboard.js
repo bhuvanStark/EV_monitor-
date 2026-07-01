@@ -5,9 +5,32 @@ let pollingInterval = null;
 // Track history locally for charts logic
 let historyBuffer = [];
 
+// Helper to parse any timestamp representation robustly into a JS Date object
+function parseTimestamp(timestamp) {
+  if (!timestamp) return new Date();
+  if (timestamp instanceof Date) return timestamp;
+  if (typeof timestamp === 'string') {
+    const d = new Date(timestamp);
+    return isNaN(d.getTime()) ? new Date() : d;
+  }
+  if (typeof timestamp === 'number') {
+    return new Date(timestamp);
+  }
+  // Firestore Timestamp object: { seconds, nanoseconds } or { _seconds, _nanoseconds }
+  const seconds = timestamp.seconds !== undefined ? timestamp.seconds : timestamp._seconds;
+  if (seconds !== undefined) {
+    return new Date(seconds * 1000);
+  }
+  if (typeof timestamp.toDate === 'function') {
+    return timestamp.toDate();
+  }
+  const d = new Date(timestamp);
+  return isNaN(d.getTime()) ? new Date() : d;
+}
+
 // Formats time strings
-function getFormattedTime(dateStr) {
-  const d = dateStr ? new Date(dateStr) : new Date();
+function getFormattedTime(timestamp) {
+  const d = parseTimestamp(timestamp);
   return d.toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
 }
 
@@ -151,14 +174,24 @@ function startHttpPolling() {
       const latestRes = await fetch('/api/telemetry/latest');
       if (latestRes.ok) {
         const latest = await latestRes.json();
-        updateLatestUI(latest.data);
+        const data = latest.data;
+        if (data && data.timestamp) {
+          data.timestamp = parseTimestamp(data.timestamp).toISOString();
+        }
+        updateLatestUI(data);
       }
       
       // Fetch history docs
       const historyRes = await fetch('/api/telemetry/history?limit=30');
       if (historyRes.ok) {
         const history = await historyRes.json();
-        updateHistoryUI(history.data);
+        const historyData = history.data || [];
+        historyData.forEach(log => {
+          if (log.timestamp) {
+            log.timestamp = parseTimestamp(log.timestamp).toISOString();
+          }
+        });
+        updateHistoryUI(historyData);
       }
     } catch (err) {
       console.error('HTTP Polling Error:', err.message);
